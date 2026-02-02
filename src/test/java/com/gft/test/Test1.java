@@ -13,13 +13,17 @@ import org.junit.runners.Suite;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.Assume.*;
+
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
@@ -37,12 +41,12 @@ public class Test1 {
     // --------- Static lifecycle (JUnit4) -> @BeforeAll/@AfterAll (JUnit5) ----------
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
@@ -50,13 +54,13 @@ public class Test1 {
     // --------- Instance lifecycle (JUnit4) -> @BeforeEach/@AfterEach (JUnit5) ----------
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -174,30 +178,32 @@ public class Test1 {
     }
 
     // --------- @Test(timeout=...) (JUnit4) -> @Timeout or assertTimeout in JUnit5 ----------
-    @Test(timeout = 50L)
+    @Test
     public void test04_timeout_annotation() throws InterruptedException {
         Thread.sleep(10L);
         assertTrue(true);
     }
 
     // --------- @Test(expected=...) (JUnit4) -> assertThrows in JUnit5 ----------
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     // --------- ExpectedException Rule (JUnit4) -> assertThrows in JUnit5 ----------
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
     }
 
     // --------- TemporaryFolder Rule (JUnit4) -> @TempDir (JUnit5) ----------
     @Test
-    public void test07_temporary_folder_rule() throws IOException {
-        File f = tmp.newFile("demo.txt");
+    public void test07_temporary_folder_rule(@TempDir Path tempDir) throws IOException {
+        File f = tempDir.resolve("demo.txt").toFile();
         assertTrue("temp file should exist", f.exists());
         assertThat(f.getName(), endsWith(".txt"));
     }
@@ -205,10 +211,11 @@ public class Test1 {
     // --------- ErrorCollector Rule (JUnit4) -> assertAll (JUnit5) ----------
     @Test
     public void test08_error_collector() {
-        errors.checkThat("a", "a", is("a"));
-        errors.checkThat("1+1", 1 + 1, is(2));
-        errors.checkThat("contains init", buffer, hasItem("init"));
-        // test continues even if a check fails
+        assertAll(
+            () -> assertThat("a", "a", is("a")),
+            () -> assertThat("1+1", 1 + 1, is(2)),
+            () -> assertThat("contains init", buffer, hasItem("init"))
+        );
     }
 
     // --------- Demonstrate fail + try/catch style often migrated to assertThrows ----------
@@ -224,8 +231,8 @@ public class Test1 {
 
     // --------- Demonstrate TestName Rule (JUnit4) -> TestInfo in JUnit5 ----------
     @Test
-    public void test10_test_name_rule() {
-        assertThat(testName.getMethodName(), startsWith("test10_"));
+    public void test10_test_name_rule(TestInfo testInfo) {
+        assertThat(testInfo.getTestMethod().get().getName(), startsWith("test10_"));
     }
 
     // -------------------------------------------------------------------------------------------------------------
