@@ -1,6 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.gft.test</groupId>
+    <artifactId>test-project</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.jupiter.version>5.10.0</junit.jupiter.version>
+    </properties>
+
+    <dependencies>
+        <!-- JUnit 4 for existing tests -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit 5 (Jupiter) for future tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit Vintage to run JUnit 4 tests with JUnit 5 engine -->
+        <dependency>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Surefire plugin to run tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M9</version>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
 package com.gft.test;
 
-import org.junit.*;
+import org.junit.jupiter.api.*;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.theories.*;
@@ -15,11 +72,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Duration;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
@@ -37,12 +95,12 @@ public class Test1 {
     // --------- Static lifecycle (JUnit4) -> @BeforeAll/@AfterAll (JUnit5) ----------
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
@@ -50,13 +108,13 @@ public class Test1 {
     // --------- Instance lifecycle (JUnit4) -> @BeforeEach/@AfterEach (JUnit5) ----------
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -129,7 +187,7 @@ public class Test1 {
     };
 
     // --------- Ignored tests/classes (JUnit4) -> @Disabled (JUnit5) ----------
-    @Ignore("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
+    @Disabled("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -174,16 +232,20 @@ public class Test1 {
     }
 
     // --------- @Test(timeout=...) (JUnit4) -> @Timeout or assertTimeout in JUnit5 ----------
-    @Test(timeout = 50L)
+    @Test
     public void test04_timeout_annotation() throws InterruptedException {
-        Thread.sleep(10L);
-        assertTrue(true);
+        assertTimeout(Duration.ofMillis(50), () -> {
+            Thread.sleep(10L);
+            assertTrue(true);
+        });
     }
 
     // --------- @Test(expected=...) (JUnit4) -> assertThrows in JUnit5 ----------
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     // --------- ExpectedException Rule (JUnit4) -> assertThrows in JUnit5 ----------
@@ -254,7 +316,7 @@ public class Test1 {
             // JUnit4 per-test setup
         }
 
-        @Test
+        @org.junit.Test
         public void parsesIntegers() {
             assertEquals(expected, Integer.parseInt(input));
         }
@@ -311,7 +373,7 @@ public class Test1 {
     // -------------------------------------------------------------------------------------------------------------
     // Class-level Ignore (JUnit4) -> @Disabled in JUnit5
     // -------------------------------------------------------------------------------------------------------------
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {
