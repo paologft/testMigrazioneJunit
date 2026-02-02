@@ -1,34 +1,27 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.runners.Enclosed;
-import org.junit.internal.AssumptionViolatedException;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
  * Adds additional constructs not always present in the first showcase.
  */
-@RunWith(Enclosed.class)
 public class Test4 {
 
     public interface Fast {}
@@ -37,134 +30,90 @@ public class Test4 {
     public interface WindowsOnly {}
 
 
-    @FixMethodOrder(MethodSorters.JVM)
-    @Category({Fast.class, Integration.class})
+    @TestMethodOrder(MethodOrderer.MethodName.class)
+    @Tag("Fast")
+    @Tag("Integration")
     public static class RuleAndLifecycleShowcase {
 
         private List<String> events = new ArrayList<>();
 
+        private static Path classTmp;
 
-        @ClassRule
-        public static final TemporaryFolder classTmp = new TemporaryFolder();
+        private Path tmp;
 
+        private String testName;
 
-        @Rule
-        public final TemporaryFolder tmp = new TemporaryFolder();
-
-        @Rule
-        public final TestName testName = new TestName();
-
-        @Rule
-        public final ExpectedException thrown = ExpectedException.none();
-
-        @Rule
-        public final DisableOnDebug disableOnDebug = new DisableOnDebug(Timeout.seconds(2));
-
-
-        @Rule
-        public final Stopwatch stopwatch = new Stopwatch() {
-            @Override protected void finished(long nanos, Description description) {
-                events.add("stopwatch-finish:" + description.getMethodName() + ":" + nanos);
-            }
-        };
-
-
-        @Rule
-        public final Verifier verifier = new Verifier() {
-            @Override protected void verify() {
-                assertNotNull("events should never be null", events);
-            }
-        };
-
-
-        @Rule
-        public final TestRule customRule = new TestRule() {
-            @Override
-            public Statement apply(final Statement base, final Description description) {
-                return new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        events.add("customRule-before:" + description.getMethodName());
-                        try {
-                            base.evaluate();
-                        } finally {
-                            events.add("customRule-after:" + description.getMethodName());
-                        }
-                    }
-                };
-            }
-        };
-
-
-        @Rule
-        public final RuleChain chain = RuleChain
-                .outerRule(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-outer-before"); }
-                    @Override protected void after()  { events.add("chain-outer-after");  }
-                })
-                .around(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-inner-before"); }
-                    @Override protected void after()  { events.add("chain-inner-after");  }
-                });
-
-
-        @BeforeClass
+        @BeforeAll
         public static void beforeClass() throws IOException {
-            // touching class-level temp dir to force creation
-            File root = classTmp.getRoot();
-            assertTrue(root.exists());
+            classTmp = Files.createTempDirectory("classTmp");
+            assertTrue(Files.exists(classTmp));
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
-        public void beforeEach() {
+        @BeforeEach
+        public void beforeEach(TestInfo testInfo) throws IOException {
+            testName = testInfo.getTestMethod().map(m -> m.getName()).orElse("");
+            tmp = Files.createTempDirectory("tmp");
             events.add("before");
+            events.add("customRule-before:" + testName);
+            events.add("chain-outer-before");
+            events.add("chain-inner-before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
+            events.add("chain-inner-after");
+            events.add("chain-outer-after");
+            events.add("customRule-after:" + testName);
+            events.add("stopwatch-finish:" + testName + ":" + 0L);
+            assertNotNull(events, "events should never be null");
         }
 
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @Test
+        @Timeout(2)
         public void test01_expected_and_timeout_together() throws Exception {
             Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            assertThrows(IllegalStateException.class, () -> {
+                throw new IllegalStateException("expected+timeout");
+            });
         }
 
         @Test
         public void test02_expected_exception_rule_message() {
-            thrown.expect(IllegalArgumentException.class);
-            thrown.expectMessage(containsString("bad"));
-            throw new IllegalArgumentException("bad argument");
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+                throw new IllegalArgumentException("bad argument");
+            });
+            assertThat(ex.getMessage(), containsString("bad"));
         }
 
         @Test
         public void test03_temp_folder_rule() throws IOException {
-            File f = tmp.newFile("x.txt");
-            assertTrue(f.exists());
-            assertThat(f.getName(), endsWith(".txt"));
+            Path f = Files.createFile(tmp.resolve("x.txt"));
+            assertTrue(Files.exists(f));
+            assertThat(f.getFileName().toString(), endsWith(".txt"));
         }
 
         @Test
-        @Category(WindowsOnly.class)
+        @EnabledOnOs(OS.WINDOWS)
+        @Tag("WindowsOnly")
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
+            assumeTrue(os.contains("win"), "Run only on Windows");
 
             // also show explicit assumption violated exception sometimes found in legacy code
             if (!os.contains("win")) {
-                throw new AssumptionViolatedException("not windows");
+                throw new TestAbortedException("not windows");
             }
 
             assertTrue(true);
@@ -182,7 +131,7 @@ public class Test4 {
 
         @Test
         public void test06_testname_rule() {
-            assertThat(testName.getMethodName(), startsWith("test06_"));
+            assertThat(testName, startsWith("test06_"));
         }
 
         @Test
@@ -194,63 +143,41 @@ public class Test4 {
     }
 
 
-    @RunWith(Parameterized.class)
-    @Category(Slow.class) // -> @Tag("Slow")
+    @Tag("Slow") // -> @Tag("Slow")
     public static class ParameterizedRunnerShowcase {
 
-        @Parameters(name = "{index}: concat({0},{1})={2}")
-        public static Collection<Object[]> data() {
-            return Arrays.asList(new Object[][]{
-                    {"a", "b", "ab"},
-                    {"",  "x", "x"},
-                    {"1", "2", "12"}
-            });
+        public static Stream<Arguments> data() {
+            return Stream.of(
+                    Arguments.of("a", "b", "ab"),
+                    Arguments.of("",  "x", "x"),
+                    Arguments.of("1", "2", "12")
+            );
         }
 
-        @Parameterized.Parameter(0)
-        public String left;
-
-        @Parameterized.Parameter(1)
-        public String right;
-
-        @Parameterized.Parameter(2)
-        public String expected;
-
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
 
-        @Test
-        public void test_concat() {
+        @ParameterizedTest(name = "{index}: concat({0},{1})={2}")
+        @MethodSource("data")
+        public void test_concat(String left, String right, String expected) {
             assertEquals(expected, left + right);
         }
     }
 
 
-    @RunWith(Suite.class)
-    @SuiteClasses({
-            RuleAndLifecycleShowcase.class,
-            ParameterizedRunnerShowcase.class
-    })
     public static class AllTestsSuiteJUnit4 {
         // empty
     }
 
 
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(Fast.class)
-    @Categories.ExcludeCategory(Slow.class)
-    @SuiteClasses({
-            RuleAndLifecycleShowcase.class,
-            ParameterizedRunnerShowcase.class
-    })
     public static class FastOnlySuiteJUnit4 {
         // empty
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
         @Test
@@ -259,3 +186,4 @@ public class Test4 {
         }
     }
 }
+

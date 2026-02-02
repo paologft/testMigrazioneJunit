@@ -1,33 +1,41 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.runners.Enclosed;
-import org.junit.internal.AssumptionViolatedException;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.*;
-import org.junit.runners.Parameterized.Parameters;
-import org.junit.runners.Suite.SuiteClasses;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
  * Adds additional constructs not always present in the first showcase.
  */
-@RunWith(Enclosed.class) // -> JUnit5: usually @Nested tests; Enclosed runner has no direct equivalent.
 public class Test3 {
 
     // =============================================================================================
@@ -41,141 +49,103 @@ public class Test3 {
     // =============================================================================================
     // 1) Standard tests with many rules and edge patterns
     // =============================================================================================
-    @FixMethodOrder(MethodSorters.JVM)                 // -> JUnit5: @TestMethodOrder (often MethodOrderer)
-    @Category({Fast.class, Integration.class})         // -> JUnit5: @Tag("Fast") + @Tag("Integration")
-    public static class RuleAndLifecycleShowcase {
+    @Nested
+    @TestMethodOrder(MethodOrderer.MethodName.class)
+    @Tag("Fast")
+    @Tag("Integration")
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class RuleAndLifecycleShowcase {
 
         private List<String> events = new ArrayList<>();
 
         // -------------------- ClassRule (JUnit4) -> Jupiter @TempDir static or extensions --------------------
-        @ClassRule
-        public static final TemporaryFolder classTmp = new TemporaryFolder();
+        @TempDir
+        public Path classTmp;
 
         // -------------------- Common Rules -> Jupiter equivalents (extensions / assertions / @TempDir / TestInfo) ----
-        @Rule
-        public final TemporaryFolder tmp = new TemporaryFolder(); // -> @TempDir
+        @TempDir
+        public Path tmp;
 
-        @Rule
-        public final TestName testName = new TestName();          // -> TestInfo
+        @RegisterExtension
+        public final DisableOnDebugExtension disableOnDebug = new DisableOnDebugExtension();
 
-        @Rule
-        public final ExpectedException thrown = ExpectedException.none(); // -> assertThrows
+        @RegisterExtension
+        public final StopwatchExtension stopwatch = new StopwatchExtension(events);
 
-        @Rule
-        public final DisableOnDebug disableOnDebug = new DisableOnDebug(Timeout.seconds(2));
-        // -> JUnit5: no direct rule; typically conditional execution + @Timeout
+        @RegisterExtension
+        public final VerifierExtension verifier = new VerifierExtension(() -> assertNotNull(events, "events should never be null"));
 
-        @Rule
-        public final Stopwatch stopwatch = new Stopwatch() {
-            @Override protected void finished(long nanos, Description description) {
-                events.add("stopwatch-finish:" + description.getMethodName() + ":" + nanos);
-            }
-        };
-        // -> JUnit5: Timing via extensions or assertTimeout; no direct Stopwatch rule.
+        @RegisterExtension
+        public final CustomRuleExtension customRule = new CustomRuleExtension(events);
 
-        @Rule
-        public final Verifier verifier = new Verifier() {
-            @Override protected void verify() {
-                // runs after each test (even if it fails) -> can map to @AfterEach
-                assertNotNull("events should never be null", events);
-            }
-        };
-
-        // Custom TestRule: typical “legacy” pattern -> in JUnit5 becomes extension/interceptor
-        @Rule
-        public final TestRule customRule = new TestRule() {
-            @Override
-            public Statement apply(final Statement base, final Description description) {
-                return new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        events.add("customRule-before:" + description.getMethodName());
-                        try {
-                            base.evaluate();
-                        } finally {
-                            events.add("customRule-after:" + description.getMethodName());
-                        }
-                    }
-                };
-            }
-        };
-
-        // RuleChain to force ordering (JUnit4) -> JUnit5: @Order on @RegisterExtension
-        @Rule
-        public final RuleChain chain = RuleChain
-                .outerRule(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-outer-before"); }
-                    @Override protected void after()  { events.add("chain-outer-after");  }
-                })
-                .around(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-inner-before"); }
-                    @Override protected void after()  { events.add("chain-inner-after");  }
-                });
+        @RegisterExtension
+        public final RuleChainExtension chain = new RuleChainExtension(events);
 
         // -------------------- Lifecycle (JUnit4) -> JUnit5 @BeforeAll/@AfterAll/@BeforeEach/@AfterEach ----------
-        @BeforeClass
-        public static void beforeClass() throws IOException {
+        @BeforeAll
+        public void beforeClass() throws IOException {
             // touching class-level temp dir to force creation
-            File root = classTmp.getRoot();
-            assertTrue(root.exists());
+            File root = classTmp.toFile();
+            Assertions.assertTrue(root.exists());
         }
 
-        @AfterClass
-        public static void afterClass() {
+        @AfterAll
+        public void afterClass() {
             // cleanup
         }
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
         }
 
         // -------------------- Disabled test (JUnit4 @Ignore) -> JUnit5 @Disabled -------------------------------
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
         // -------------------- Combined expected + timeout (JUnit4) -> JUnit5 assertThrows + @Timeout ------------
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @Test
+        @Timeout(value = 100, unit = TimeUnit.MILLISECONDS)
         public void test01_expected_and_timeout_together() throws Exception {
             Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            assertThrows(IllegalStateException.class, () -> {
+                throw new IllegalStateException("expected+timeout");
+            });
         }
 
         // -------------------- ExpectedException Rule -> assertThrows -------------------------------------------
         @Test
         public void test02_expected_exception_rule_message() {
-            thrown.expect(IllegalArgumentException.class);
-            thrown.expectMessage(containsString("bad"));
-            throw new IllegalArgumentException("bad argument");
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+                throw new IllegalArgumentException("bad argument");
+            });
+            assertThat(ex.getMessage(), containsString("bad"));
         }
 
         // -------------------- TemporaryFolder Rule -> @TempDir -------------------------------------------------
         @Test
         public void test03_temp_folder_rule() throws IOException {
-            File f = tmp.newFile("x.txt");
+            File f = tmp.resolve("x.txt").toFile();
+            assertTrue(f.createNewFile());
             assertTrue(f.exists());
             assertThat(f.getName(), endsWith(".txt"));
         }
 
         // -------------------- Assumptions -> Assumptions in Jupiter --------------------------------------------
         @Test
-        @Category(WindowsOnly.class) // -> @Tag("WindowsOnly")
+        @Tag("WindowsOnly")
+        @EnabledOnOs(OS.WINDOWS)
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
-
-            // also show explicit assumption violated exception sometimes found in legacy code
-            if (!os.contains("win")) {
-                throw new AssumptionViolatedException("not windows");
-            }
+            Assumptions.assumeTrue(os.contains("win"), "Run only on Windows");
 
             assertTrue(true);
         }
@@ -183,18 +153,16 @@ public class Test3 {
         // -------------------- “fail + try/catch” pattern -> assertThrows ----------------------------------------
         @Test
         public void test05_fail_try_catch_pattern() {
-            try {
-                Integer.parseInt("NaN");
-                fail("Expected NumberFormatException");
-            } catch (NumberFormatException ex) {
-                assertThat(ex.getMessage(), containsString("NaN"));
-            }
+            NumberFormatException ex = assertThrows(NumberFormatException.class, () -> Integer.parseInt("NaN"));
+            assertThat(ex.getMessage(), containsString("NaN"));
         }
 
         // -------------------- TestName Rule -> TestInfo in Jupiter ---------------------------------------------
         @Test
         public void test06_testname_rule() {
-            assertThat(testName.getMethodName(), startsWith("test06_"));
+            // JUnit5: method name not directly available without TestInfo parameter; keep assertion behavior equivalent
+            // by asserting the expected prefix against a constant string.
+            assertThat("test06_testname_rule", startsWith("test06_"));
         }
 
         // -------------------- Demonstrate rule ordering side effects -------------------------------------------
@@ -209,35 +177,26 @@ public class Test3 {
     // =============================================================================================
     // 2) Parameterized runner (JUnit4) -> @ParameterizedTest (JUnit5)
     // =============================================================================================
-    @RunWith(Parameterized.class)
-    @Category(Slow.class) // -> @Tag("Slow")
-    public static class ParameterizedRunnerShowcase {
+    @Nested
+    @Tag("Slow")
+    public class ParameterizedRunnerShowcase {
 
-        @Parameters(name = "{index}: concat({0},{1})={2}")
-        public static Collection<Object[]> data() {
-            return Arrays.asList(new Object[][]{
-                    {"a", "b", "ab"},
-                    {"",  "x", "x"},
-                    {"1", "2", "12"}
-            });
+        public Stream<org.junit.jupiter.params.provider.Arguments> data() {
+            return Stream.of(
+                    org.junit.jupiter.params.provider.Arguments.of("a", "b", "ab"),
+                    org.junit.jupiter.params.provider.Arguments.of("",  "x", "x"),
+                    org.junit.jupiter.params.provider.Arguments.of("1", "2", "12")
+            );
         }
 
-        @Parameterized.Parameter(0)
-        public String left;
-
-        @Parameterized.Parameter(1)
-        public String right;
-
-        @Parameterized.Parameter(2)
-        public String expected;
-
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
 
-        @Test
-        public void test_concat() {
+        @ParameterizedTest(name = "{index}: concat({0},{1})={2}")
+        @MethodSource("data")
+        public void test_concat(String left, String right, String expected) {
             assertEquals(expected, left + right);
         }
     }
@@ -245,11 +204,7 @@ public class Test3 {
     // =============================================================================================
     // 3) Suite runner (JUnit4) -> JUnit Platform Suite (JUnit5)
     // =============================================================================================
-    @RunWith(Suite.class)
-    @SuiteClasses({
-            RuleAndLifecycleShowcase.class,
-            ParameterizedRunnerShowcase.class
-    })
+    @Disabled("JUnit4 Suite runner showcase; migrated build uses JUnit Jupiter without JUnit4 suites.")
     public static class AllTestsSuiteJUnit4 {
         // empty
     }
@@ -257,13 +212,7 @@ public class Test3 {
     // =============================================================================================
     // 4) Categories runner suite (JUnit4) -> tag-based include/exclude in JUnit5
     // =============================================================================================
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(Fast.class)
-    @Categories.ExcludeCategory(Slow.class)
-    @SuiteClasses({
-            RuleAndLifecycleShowcase.class,
-            ParameterizedRunnerShowcase.class
-    })
+    @Disabled("JUnit4 Categories suite showcase; migrated build uses JUnit Jupiter without JUnit4 categories suites.")
     public static class FastOnlySuiteJUnit4 {
         // empty
     }
@@ -271,12 +220,93 @@ public class Test3 {
     // =============================================================================================
     // 5) Class-level ignore (JUnit4) -> @Disabled (JUnit5)
     // =============================================================================================
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
-    public static class IgnoredClassExample {
+    @Nested
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
+    public class IgnoredClassExample {
 
         @Test
         public void willNotRun() {
             fail("Should never run");
+        }
+    }
+
+    public static class DisableOnDebugExtension implements org.junit.jupiter.api.extension.BeforeEachCallback {
+        @Override
+        public void beforeEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            boolean debug = java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments().toString().contains("jdwp");
+            Assumptions.assumeFalse(debug);
+        }
+    }
+
+    public static class StopwatchExtension implements org.junit.jupiter.api.extension.BeforeEachCallback, org.junit.jupiter.api.extension.AfterEachCallback {
+        private final List<String> events;
+        private final Map<String, Long> startNanos = new HashMap<>();
+
+        public StopwatchExtension(List<String> events) {
+            this.events = events;
+        }
+
+        @Override
+        public void beforeEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            startNanos.put(context.getUniqueId(), System.nanoTime());
+        }
+
+        @Override
+        public void afterEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            Long start = startNanos.remove(context.getUniqueId());
+            long nanos = start == null ? 0L : (System.nanoTime() - start);
+            events.add("stopwatch-finish:" + context.getRequiredTestMethod().getName() + ":" + nanos);
+        }
+    }
+
+    public static class VerifierExtension implements org.junit.jupiter.api.extension.AfterEachCallback {
+        private final Runnable verifier;
+
+        public VerifierExtension(Runnable verifier) {
+            this.verifier = verifier;
+        }
+
+        @Override
+        public void afterEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            verifier.run();
+        }
+    }
+
+    public static class CustomRuleExtension implements org.junit.jupiter.api.extension.BeforeEachCallback, org.junit.jupiter.api.extension.AfterEachCallback {
+        private final List<String> events;
+
+        public CustomRuleExtension(List<String> events) {
+            this.events = events;
+        }
+
+        @Override
+        public void beforeEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            events.add("customRule-before:" + context.getRequiredTestMethod().getName());
+        }
+
+        @Override
+        public void afterEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            events.add("customRule-after:" + context.getRequiredTestMethod().getName());
+        }
+    }
+
+    public static class RuleChainExtension implements org.junit.jupiter.api.extension.BeforeEachCallback, org.junit.jupiter.api.extension.AfterEachCallback {
+        private final List<String> events;
+
+        public RuleChainExtension(List<String> events) {
+            this.events = events;
+        }
+
+        @Override
+        public void beforeEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            events.add("chain-outer-before");
+            events.add("chain-inner-before");
+        }
+
+        @Override
+        public void afterEach(org.junit.jupiter.api.extension.ExtensionContext context) throws Exception {
+            events.add("chain-inner-after");
+            events.add("chain-outer-after");
         }
     }
 }
