@@ -1,6 +1,17 @@
 package com.gft.test;
 
-import org.junit.*;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Assertions.*;
+
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.theories.DataPoint;
@@ -9,7 +20,6 @@ import org.junit.experimental.theories.Theories;
 import org.junit.experimental.theories.Theory;
 import org.junit.rules.*;
 import org.junit.runner.Description;
-import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
@@ -21,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -32,7 +43,7 @@ import static org.junit.Assume.assumeTrue;
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
  * Contains most features that typically require migration changes.
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@TestMethodOrder(MethodOrderer.MethodName.class)
 @Category(Test2.FastTests.class)
 public class Test2 {
 
@@ -42,25 +53,25 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -130,7 +141,7 @@ public class Test2 {
         }
     };
 
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -171,22 +182,25 @@ public class Test2 {
         assertTrue(true);
     }
 
-    @Test(timeout = 50L)
+    @Test
+    @Timeout(value = 50, unit = TimeUnit.MILLISECONDS)
     public void test04_timeout_annotation() throws InterruptedException {
         Thread.sleep(10L);
         assertTrue(true);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
     }
 
     @Test
@@ -220,7 +234,6 @@ public class Test2 {
     }
 
 
-    @RunWith(Parameterized.class)
     public static class ParameterizedExample {
 
         @Parameterized.Parameters(name = "{index}: parseInt({0}) = {1}") // -> JUnit5 display names differ
@@ -249,7 +262,6 @@ public class Test2 {
         }
     }
 
-    @RunWith(Theories.class)
     public static class TheoriesExample {
 
         @DataPoints
@@ -270,29 +282,15 @@ public class Test2 {
         }
     }
 
-    @RunWith(Suite.class)
-    @Suite.SuiteClasses({
-            Test2.class,
-            ParameterizedExample.class,
-            TheoriesExample.class
-    })
     public static class AllTestsSuite {
         // no code
     }
 
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(FastTests.class)
-    @Categories.ExcludeCategory(SlowTests.class)
-    @Suite.SuiteClasses({
-            Test2.class,
-            ParameterizedExample.class
-    })
     public static class FastOnlySuite {
         // no code
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {
