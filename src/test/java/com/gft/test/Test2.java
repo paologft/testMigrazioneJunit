@@ -22,9 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -42,25 +41,25 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -238,7 +237,7 @@ public class Test2 {
         @Parameterized.Parameter(1)
         public int expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
