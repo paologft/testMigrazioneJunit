@@ -1,6 +1,5 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.theories.DataPoint;
@@ -13,6 +12,12 @@ import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -42,25 +47,25 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -130,7 +135,7 @@ public class Test2 {
         }
     };
 
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -184,9 +189,10 @@ public class Test2 {
 
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
+        assertThat(ex.getMessage(), containsString("state"));
     }
 
     @Test
@@ -238,7 +244,7 @@ public class Test2 {
         @Parameterized.Parameter(1)
         public int expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
@@ -292,7 +298,7 @@ public class Test2 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {

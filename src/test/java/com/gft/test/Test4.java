@@ -1,11 +1,9 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.internal.AssumptionViolatedException;
-import org.junit.rules.*;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
@@ -14,6 +12,12 @@ import org.junit.runners.Parameterized.Parameters;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +25,7 @@ import java.util.*;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -37,48 +41,48 @@ public class Test4 {
     public interface WindowsOnly {}
 
 
-    @FixMethodOrder(MethodSorters.JVM)
+    @org.junit.FixMethodOrder(MethodSorters.JVM)
     @Category({Fast.class, Integration.class})
     public static class RuleAndLifecycleShowcase {
 
         private List<String> events = new ArrayList<>();
 
 
-        @ClassRule
-        public static final TemporaryFolder classTmp = new TemporaryFolder();
+        @org.junit.ClassRule
+        public static final org.junit.rules.TemporaryFolder classTmp = new org.junit.rules.TemporaryFolder();
 
 
-        @Rule
-        public final TemporaryFolder tmp = new TemporaryFolder();
+        @org.junit.Rule
+        public final org.junit.rules.TemporaryFolder tmp = new org.junit.rules.TemporaryFolder();
 
-        @Rule
-        public final TestName testName = new TestName();
+        @org.junit.Rule
+        public final org.junit.rules.TestName testName = new org.junit.rules.TestName();
 
-        @Rule
-        public final ExpectedException thrown = ExpectedException.none();
+        @org.junit.Rule
+        public final org.junit.rules.ExpectedException thrown = org.junit.rules.ExpectedException.none();
 
-        @Rule
-        public final DisableOnDebug disableOnDebug = new DisableOnDebug(Timeout.seconds(2));
+        @org.junit.Rule
+        public final org.junit.rules.DisableOnDebug disableOnDebug = new org.junit.rules.DisableOnDebug(org.junit.rules.Timeout.seconds(2));
 
 
-        @Rule
-        public final Stopwatch stopwatch = new Stopwatch() {
+        @org.junit.Rule
+        public final org.junit.rules.Stopwatch stopwatch = new org.junit.rules.Stopwatch() {
             @Override protected void finished(long nanos, Description description) {
                 events.add("stopwatch-finish:" + description.getMethodName() + ":" + nanos);
             }
         };
 
 
-        @Rule
-        public final Verifier verifier = new Verifier() {
+        @org.junit.Rule
+        public final org.junit.rules.Verifier verifier = new org.junit.rules.Verifier() {
             @Override protected void verify() {
-                assertNotNull("events should never be null", events);
+                assertNotNull(events, "events should never be null");
             }
         };
 
 
-        @Rule
-        public final TestRule customRule = new TestRule() {
+        @org.junit.Rule
+        public final org.junit.rules.TestRule customRule = new org.junit.rules.TestRule() {
             @Override
             public Statement apply(final Statement base, final Description description) {
                 return new Statement() {
@@ -96,47 +100,47 @@ public class Test4 {
         };
 
 
-        @Rule
-        public final RuleChain chain = RuleChain
-                .outerRule(new ExternalResource() {
+        @org.junit.Rule
+        public final org.junit.rules.RuleChain chain = org.junit.rules.RuleChain
+                .outerRule(new org.junit.rules.ExternalResource() {
                     @Override protected void before() { events.add("chain-outer-before"); }
                     @Override protected void after()  { events.add("chain-outer-after");  }
                 })
-                .around(new ExternalResource() {
+                .around(new org.junit.rules.ExternalResource() {
                     @Override protected void before() { events.add("chain-inner-before"); }
                     @Override protected void after()  { events.add("chain-inner-after");  }
                 });
 
 
-        @BeforeClass
+        @BeforeAll
         public static void beforeClass() throws IOException {
             // touching class-level temp dir to force creation
             File root = classTmp.getRoot();
             assertTrue(root.exists());
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
         }
 
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @org.junit.Test(expected = IllegalStateException.class, timeout = 100L)
         public void test01_expected_and_timeout_together() throws Exception {
             Thread.sleep(5L);
             throw new IllegalStateException("expected+timeout");
@@ -216,7 +220,7 @@ public class Test4 {
         @Parameterized.Parameter(2)
         public String expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
@@ -250,7 +254,7 @@ public class Test4 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
         @Test

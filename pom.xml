@@ -30,12 +30,6 @@
         <!-- ========================= -->
         <!-- JUnit 4 (your current file) -->
         <!-- ========================= -->
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit4.version}</version>
-            <scope>test</scope>
-        </dependency>
 
         <!-- Hamcrest (used by assertThat + matchers) -->
         <dependency>
@@ -50,14 +44,7 @@
         <!-- ========================= -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit5.version}</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
+            <artifactId>junit-jupiter</artifactId>
             <version>${junit5.version}</version>
             <scope>test</scope>
         </dependency>
