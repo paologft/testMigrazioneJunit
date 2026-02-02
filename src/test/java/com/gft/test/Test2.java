@@ -28,10 +28,24 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-/**
- * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
- * Contains most features that typically require migration changes.
- */
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.*;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.condition.*;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Assumptions.*;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Locale;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
+
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(Test2.FastTests.class)
 public class Test2 {
@@ -298,5 +312,121 @@ public class Test2 {
         public void willNotRun() {
             fail("Should never run");
         }
+    }
+}
+
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@Category(Test2.FastTests.class)
+class Test2JupiterTest {
+
+    private List<String> buffer;
+    private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
+
+    @BeforeAll
+    void beforeAll() {
+        BEFORE_CLASS_COUNTER.incrementAndGet();
+    }
+
+    @AfterAll
+    void afterAll() {
+        // cleanup
+    }
+
+    @BeforeEach
+    void setUp() {
+        buffer = new ArrayList<>();
+        buffer.add("init");
+    }
+
+    @AfterEach
+    void tearDown() {
+        buffer.clear();
+    }
+
+    @Test
+    void test01_assertions_basic() {
+        assertTrue(buffer.contains("init"), "buffer should contain init");
+        assertFalse(buffer.contains("X"), "buffer should not contain X");
+        assertNull(null);
+        assertNotNull(buffer);
+
+        assertEquals(1, buffer.size(), "size");
+        assertNotEquals(1, 2, "not equals");
+
+        assertSame(buffer, buffer, "same ref");
+        assertNotSame(buffer, new ArrayList<String>(), "different ref");
+
+        assertArrayEquals(new int[]{1,2,3}, new int[]{1,2,3});
+    }
+
+    @Test
+    void test02_hamcrest_assertThat() {
+        assertThat("buffer has init", buffer, hasItem("init"));
+        assertThat("counter", BEFORE_CLASS_COUNTER.get(), greaterThanOrEqualTo(1));
+        assertThat("string", "hello", allOf(startsWith("he"), endsWith("lo")));
+    }
+
+    @Test
+    void test03_assumptions() {
+        assumeTrue(Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")),
+                "Run only when property is set");
+
+        assumeThat(System.getProperty("os.name", "").toLowerCase(Locale.ROOT),
+                not(containsString("unknown")));
+
+        // if we got here, the assumptions held
+        assertTrue(true);
+    }
+
+    @Test
+    @Timeout(value = 50, unit = java.util.concurrent.TimeUnit.MILLISECONDS)
+    void test04_timeout_annotation() throws InterruptedException {
+        Thread.sleep(10L);
+        assertTrue(true);
+    }
+
+    @Test
+    void test05_expected_exception_annotation() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
+    }
+
+    @Test
+    void test06_expected_exception_rule() {
+        assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
+    }
+
+    @Test
+    void test07_temporary_folder_rule(@TempDir File tempDir) throws IOException {
+        File f = new File(tempDir, "demo.txt");
+        assertTrue(f.createNewFile(), "temp file should exist");
+        assertThat(f.getName(), endsWith(".txt"));
+    }
+
+    @Test
+    void test08_error_collector() {
+        assertAll("error collector",
+                () -> assertThat("a", "a", is("a")),
+                () -> assertThat("1+1", 1 + 1, is(2)),
+                () -> assertThat("contains init", buffer, hasItem("init"))
+        );
+    }
+
+    @Test
+    void test09_manual_exception_assertion() {
+        try {
+            Integer.parseInt("not-a-number");
+            fail("Expected NumberFormatException");
+        } catch (NumberFormatException expected) {
+            assertThat(expected.getMessage(), containsString("not-a-number"));
+        }
+    }
+
+    @Test
+    void test10_test_name_rule(TestInfo testInfo) {
+        assertThat(testInfo.getDisplayName(), startsWith("test10_test_name_rule"));
     }
 }
