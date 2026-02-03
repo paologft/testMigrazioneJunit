@@ -1,39 +1,47 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.theories.DataPoint;
-import org.junit.experimental.theories.DataPoints;
-import org.junit.experimental.theories.Theories;
-import org.junit.experimental.theories.Theory;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Suite;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.TestWatcher;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
  * Contains most features that typically require migration changes.
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Category(Test2.FastTests.class)
+@org.junit.jupiter.api.TestMethodOrder(org.junit.jupiter.api.MethodOrderer.MethodName.class)
+@org.junit.jupiter.api.Tag("FastTests")
+@org.junit.jupiter.api.Timeout(value=250L, unit=TimeUnit.MILLISECONDS)
 public class Test2 {
 
     public interface FastTests {}
@@ -42,95 +50,50 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
 
-    @Rule
-    public final TestName testName = new TestName();
+    @org.junit.jupiter.api.io.TempDir
+    Path tempDir;
 
-    @Rule
-    public final TemporaryFolder tmp = new TemporaryFolder();
+    @RegisterExtension
+    final InlineExternalResource resource = new InlineExternalResource(() -> buffer.add("resource-before"), () -> buffer.add("resource-after"));
 
-    @Rule
-    public final ErrorCollector errors = new ErrorCollector();
+    @RegisterExtension
+    final InlineWatcher watcher = new InlineWatcher();
 
-    @Rule
-    public final ExpectedException thrown = ExpectedException.none();
+    @RegisterExtension
+    final InlineRuleChain chain = new InlineRuleChain(
+            () -> buffer.add("chain-outer-before"),
+            () -> buffer.add("chain-outer-after"),
+            () -> buffer.add("chain-inner-before"),
+            () -> buffer.add("chain-inner-after")
+    );
 
-    @Rule
-    public final Timeout globalTimeout = Timeout.millis(250);
+    @RegisterExtension
+    static final InlineClassResource classResource = new InlineClassResource();
 
-    @Rule
-    public final ExternalResource resource = new ExternalResource() {
-        @Override
-        protected void before() {
-            buffer.add("resource-before");
-        }
-
-        @Override
-        protected void after() {
-            buffer.add("resource-after");
-        }
-    };
-
-    @Rule
-    public final TestWatcher watcher = new TestWatcher() {
-        @Override protected void starting(Description description) {
-            // could log: description.getMethodName()
-        }
-
-        @Override protected void failed(Throwable e, Description description) {
-            // could log failure
-        }
-
-        @Override protected void succeeded(Description description) {
-            // could log success
-        }
-    };
-
-    @Rule
-    public final RuleChain chain = RuleChain
-            .outerRule(new ExternalResource() {
-                @Override protected void before() { buffer.add("chain-outer-before"); }
-                @Override protected void after() { buffer.add("chain-outer-after"); }
-            })
-            .around(new ExternalResource() {
-                @Override protected void before() { buffer.add("chain-inner-before"); }
-                @Override protected void after() { buffer.add("chain-inner-after"); }
-            });
-
-    @ClassRule
-    public static final ExternalResource classResource = new ExternalResource() {
-        @Override protected void before() {
-            // global once-per-class resource init
-        }
-
-        @Override protected void after() {
-            // global cleanup
-        }
-    };
-
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -138,16 +101,16 @@ public class Test2 {
 
     @Test
     public void test01_assertions_basic() {
-        assertTrue("buffer should contain init", buffer.contains("init"));
-        assertFalse("buffer should not contain X", buffer.contains("X"));
+        assertTrue(buffer.contains("init"), "buffer should contain init");
+        assertFalse(buffer.contains("X"), "buffer should not contain X");
         assertNull(null);
         assertNotNull(buffer);
 
-        assertEquals("size", 1, buffer.size());
-        assertNotEquals("not equals", 1, 2);
+        assertEquals(1, buffer.size(), "size");
+        assertNotEquals(1, 2, "not equals");
 
-        assertSame("same ref", buffer, buffer);
-        assertNotSame("different ref", buffer, new ArrayList<String>());
+        assertSame(buffer, buffer, "same ref");
+        assertNotSame(buffer, new ArrayList<String>(), "different ref");
 
         assertArrayEquals(new int[]{1,2,3}, new int[]{1,2,3});
     }
@@ -161,8 +124,8 @@ public class Test2 {
 
     @Test
     public void test03_assumptions() {
-        assumeTrue("Run only when property is set",
-                Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")));
+        assumeTrue(Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")),
+                "Run only when property is set");
 
         assumeThat(System.getProperty("os.name", "").toLowerCase(Locale.ROOT),
                 not(containsString("unknown")));
@@ -171,36 +134,42 @@ public class Test2 {
         assertTrue(true);
     }
 
-    @Test(timeout = 50L)
+    @org.junit.jupiter.api.Timeout(value=50L, unit=java.util.concurrent.TimeUnit.MILLISECONDS)
+    @Test
     public void test04_timeout_annotation() throws InterruptedException {
         Thread.sleep(10L);
         assertTrue(true);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
+        assertThat(ex.getMessage(), containsString("state"));
     }
 
     @Test
     public void test07_temporary_folder_rule() throws IOException {
-        File f = tmp.newFile("demo.txt");
-        assertTrue("temp file should exist", f.exists());
+        File f = Files.createFile(tempDir.resolve("demo.txt")).toFile();
+        assertTrue(f.exists(), "temp file should exist");
         assertThat(f.getName(), endsWith(".txt"));
     }
 
     @Test
     public void test08_error_collector() {
-        errors.checkThat("a", "a", is("a"));
-        errors.checkThat("1+1", 1 + 1, is(2));
-        errors.checkThat("contains init", buffer, hasItem("init"));
+        assertAll(
+                () -> assertThat("a", "a", is("a")),
+                () -> assertThat("1+1", 1 + 1, is(2)),
+                () -> assertThat("contains init", buffer, hasItem("init"))
+        );
         // test continues even if a check fails
     }
 
@@ -215,15 +184,13 @@ public class Test2 {
     }
 
     @Test
-    public void test10_test_name_rule() {
-        assertThat(testName.getMethodName(), startsWith("test10_"));
+    public void test10_test_name_rule(TestInfo testInfo) {
+        assertThat(testInfo.getTestMethod().get().getName(), startsWith("test10_"));
     }
 
 
-    @RunWith(Parameterized.class)
     public static class ParameterizedExample {
 
-        @Parameterized.Parameters(name = "{index}: parseInt({0}) = {1}") // -> JUnit5 display names differ
         public static Iterable<Object[]> data() {
             return Arrays.asList(new Object[][]{
                     {"0", 0},
@@ -232,46 +199,54 @@ public class Test2 {
             });
         }
 
-        @Parameterized.Parameter(0)
-        public String input;
+        static Stream<org.junit.jupiter.params.provider.Arguments> dataStream() {
+            return StreamSupport.stream(data().spliterator(), false)
+                    .map(a -> org.junit.jupiter.params.provider.Arguments.of(a[0], a[1]));
+        }
 
-        @Parameterized.Parameter(1)
-        public int expected;
-
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
 
-        @Test
-        public void parsesIntegers() {
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.MethodSource("dataStream")
+        public void parsesIntegers(String input, int expected) {
             assertEquals(expected, Integer.parseInt(input));
         }
     }
 
-    @RunWith(Theories.class)
     public static class TheoriesExample {
 
-        @DataPoints
         public static int[] numbers = new int[]{-1, 0, 1, 2, 10};
 
-        @DataPoint
         public static int special = 100;
 
-        @Theory
+        static Stream<Integer> numbersStream() {
+            return Stream.concat(Arrays.stream(numbers).boxed(), Stream.of(special));
+        }
+
+        static Stream<org.junit.jupiter.params.provider.Arguments> cartesianNumbersStream() {
+            List<Integer> values = numbersStream().collect(Collectors.toList());
+            return values.stream().flatMap(a -> values.stream().map(b -> org.junit.jupiter.params.provider.Arguments.of(a, b)));
+        }
+
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.MethodSource("numbersStream")
         public void absIsNonNegative(int n) {
-            assumeTrue("skip min int edge if desired", n != Integer.MIN_VALUE);
+            assumeTrue(n != Integer.MIN_VALUE, "skip min int edge if desired");
             assertTrue(Math.abs(n) >= 0);
         }
 
-        @Theory
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.MethodSource("cartesianNumbersStream")
         public void additionIsCommutative(int a, int b) {
             assertEquals(a + b, b + a);
         }
     }
 
-    @RunWith(Suite.class)
-    @Suite.SuiteClasses({
+    @org.junit.platform.suite.api.Suite
+    @org.junit.platform.suite.api.SelectClasses({
             Test2.class,
             ParameterizedExample.class,
             TheoriesExample.class
@@ -280,23 +255,101 @@ public class Test2 {
         // no code
     }
 
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(FastTests.class)
-    @Categories.ExcludeCategory(SlowTests.class)
-    @Suite.SuiteClasses({
+    @org.junit.platform.suite.api.Suite
+    @org.junit.platform.suite.api.SelectClasses({
             Test2.class,
             ParameterizedExample.class
     })
+    @org.junit.platform.suite.api.IncludeTags({"FastTests"})
+    @org.junit.platform.suite.api.ExcludeTags({"SlowTests"})
     public static class FastOnlySuite {
         // no code
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {
             fail("Should never run");
+        }
+    }
+
+    static class InlineExternalResource implements BeforeEachCallback, AfterEachCallback {
+        private final Runnable before;
+        private final Runnable after;
+
+        InlineExternalResource(Runnable before, Runnable after) {
+            this.before = before;
+            this.after = after;
+        }
+
+        @Override
+        public void beforeEach(ExtensionContext context) {
+            before.run();
+        }
+
+        @Override
+        public void afterEach(ExtensionContext context) {
+            after.run();
+        }
+    }
+
+    static class InlineRuleChain implements BeforeEachCallback, AfterEachCallback {
+        private final Runnable outerBefore;
+        private final Runnable outerAfter;
+        private final Runnable innerBefore;
+        private final Runnable innerAfter;
+
+        InlineRuleChain(Runnable outerBefore, Runnable outerAfter, Runnable innerBefore, Runnable innerAfter) {
+            this.outerBefore = outerBefore;
+            this.outerAfter = outerAfter;
+            this.innerBefore = innerBefore;
+            this.innerAfter = innerAfter;
+        }
+
+        @Override
+        public void beforeEach(ExtensionContext context) {
+            outerBefore.run();
+            innerBefore.run();
+        }
+
+        @Override
+        public void afterEach(ExtensionContext context) {
+            innerAfter.run();
+            outerAfter.run();
+        }
+    }
+
+    static class InlineClassResource implements BeforeAllCallback, AfterAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext context) {
+            // global once-per-class resource init
+        }
+
+        @Override
+        public void afterAll(ExtensionContext context) {
+            // global cleanup
+        }
+    }
+
+    static class InlineWatcher implements TestWatcher {
+        @Override
+        public void testFailed(ExtensionContext context, Throwable cause) {
+            // could log failure
+        }
+
+        @Override
+        public void testSuccessful(ExtensionContext context) {
+            // could log success
+        }
+    }
+
+    static final class StreamSupport {
+        private StreamSupport() {}
+
+        static <T> Stream<T> stream(java.util.Spliterator<T> spliterator, boolean parallel) {
+            return java.util.stream.StreamSupport.stream(spliterator, parallel);
         }
     }
 }

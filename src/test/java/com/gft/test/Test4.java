@@ -1,34 +1,25 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.runners.Enclosed;
-import org.junit.internal.AssumptionViolatedException;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.extension.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
  * Adds additional constructs not always present in the first showcase.
  */
-@RunWith(Enclosed.class)
 public class Test4 {
 
     public interface Fast {}
@@ -37,140 +28,103 @@ public class Test4 {
     public interface WindowsOnly {}
 
 
-    @FixMethodOrder(MethodSorters.JVM)
-    @Category({Fast.class, Integration.class})
+    @org.junit.jupiter.api.TestMethodOrder(org.junit.jupiter.api.MethodOrderer.MethodName.class)
+    @org.junit.jupiter.api.Tag("Fast")
+    @org.junit.jupiter.api.Tag("Integration")
     public static class RuleAndLifecycleShowcase {
 
         private List<String> events = new ArrayList<>();
 
 
-        @ClassRule
-        public static final TemporaryFolder classTmp = new TemporaryFolder();
+        private static Path classTmpRoot;
+
+        @org.junit.jupiter.api.io.TempDir
+        Path tempDir;
+
+        @RegisterExtension
+        final DisableOnDebugExtension disableOnDebug = new DisableOnDebugExtension(2);
+
+        @RegisterExtension
+        final StopwatchExtension stopwatch = new StopwatchExtension();
+
+        @RegisterExtension
+        final VerifierExtension verifier = new VerifierExtension();
+
+        @RegisterExtension
+        final CustomRuleExtension customRule = new CustomRuleExtension();
+
+        @RegisterExtension
+        final RuleChainLikeExtension chain = new RuleChainLikeExtension();
 
 
-        @Rule
-        public final TemporaryFolder tmp = new TemporaryFolder();
-
-        @Rule
-        public final TestName testName = new TestName();
-
-        @Rule
-        public final ExpectedException thrown = ExpectedException.none();
-
-        @Rule
-        public final DisableOnDebug disableOnDebug = new DisableOnDebug(Timeout.seconds(2));
-
-
-        @Rule
-        public final Stopwatch stopwatch = new Stopwatch() {
-            @Override protected void finished(long nanos, Description description) {
-                events.add("stopwatch-finish:" + description.getMethodName() + ":" + nanos);
-            }
-        };
-
-
-        @Rule
-        public final Verifier verifier = new Verifier() {
-            @Override protected void verify() {
-                assertNotNull("events should never be null", events);
-            }
-        };
-
-
-        @Rule
-        public final TestRule customRule = new TestRule() {
-            @Override
-            public Statement apply(final Statement base, final Description description) {
-                return new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        events.add("customRule-before:" + description.getMethodName());
-                        try {
-                            base.evaluate();
-                        } finally {
-                            events.add("customRule-after:" + description.getMethodName());
-                        }
-                    }
-                };
-            }
-        };
-
-
-        @Rule
-        public final RuleChain chain = RuleChain
-                .outerRule(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-outer-before"); }
-                    @Override protected void after()  { events.add("chain-outer-after");  }
-                })
-                .around(new ExternalResource() {
-                    @Override protected void before() { events.add("chain-inner-before"); }
-                    @Override protected void after()  { events.add("chain-inner-after");  }
-                });
-
-
-        @BeforeClass
-        public static void beforeClass() throws IOException {
+        @org.junit.jupiter.api.BeforeAll
+        public static void beforeClass(@org.junit.jupiter.api.io.TempDir Path classTmp) throws IOException {
             // touching class-level temp dir to force creation
-            File root = classTmp.getRoot();
+            classTmpRoot = classTmp;
+            File root = classTmpRoot.toFile();
             assertTrue(root.exists());
         }
 
-        @AfterClass
+        @org.junit.jupiter.api.AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
+        @org.junit.jupiter.api.BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @org.junit.jupiter.api.AfterEach
         public void afterEach() {
             events.add("after");
         }
 
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
-        @Test
+        @org.junit.jupiter.api.Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
+        @org.junit.jupiter.api.Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @org.junit.jupiter.api.Test
+        @org.junit.jupiter.api.Timeout(value = 100L, unit = TimeUnit.MILLISECONDS)
         public void test01_expected_and_timeout_together() throws Exception {
-            Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            assertThrows(IllegalStateException.class, () -> {
+                Thread.sleep(5L);
+                throw new IllegalStateException("expected+timeout");
+            });
         }
 
-        @Test
+        @org.junit.jupiter.api.Test
         public void test02_expected_exception_rule_message() {
-            thrown.expect(IllegalArgumentException.class);
-            thrown.expectMessage(containsString("bad"));
-            throw new IllegalArgumentException("bad argument");
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+                throw new IllegalArgumentException("bad argument");
+            });
+            assertThat(ex.getMessage(), containsString("bad"));
         }
 
-        @Test
+        @org.junit.jupiter.api.Test
         public void test03_temp_folder_rule() throws IOException {
-            File f = tmp.newFile("x.txt");
+            File f = Files.createFile(tempDir.resolve("x.txt")).toFile();
             assertTrue(f.exists());
             assertThat(f.getName(), endsWith(".txt"));
         }
 
-        @Test
-        @Category(WindowsOnly.class)
+        @org.junit.jupiter.api.Test
+        @org.junit.jupiter.api.Tag("WindowsOnly")
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
+            assumeTrue(os.contains("win"), "Run only on Windows");
 
             // also show explicit assumption violated exception sometimes found in legacy code
             if (!os.contains("win")) {
-                throw new AssumptionViolatedException("not windows");
+                throw new org.opentest4j.TestAbortedException("not windows");
             }
 
             assertTrue(true);
         }
 
-        @Test
+        @org.junit.jupiter.api.Test
         public void test05_fail_try_catch_pattern() {
             try {
                 Integer.parseInt("NaN");
@@ -180,25 +134,85 @@ public class Test4 {
             }
         }
 
-        @Test
-        public void test06_testname_rule() {
-            assertThat(testName.getMethodName(), startsWith("test06_"));
+        @org.junit.jupiter.api.Test
+        public void test06_testname_rule(TestInfo testInfo) {
+            assertThat(testInfo.getTestMethod().get().getName(), startsWith("test06_"));
         }
 
-        @Test
+        @org.junit.jupiter.api.Test
         public void test07_rulechain_ordering_observable() {
             // just ensure chain markers are recorded somewhere during execution
             // note: the exact order can be asserted if your tool wants stable output
             assertNotNull(events);
         }
+
+        private class DisableOnDebugExtension implements BeforeEachCallback {
+            private final long timeoutSeconds;
+
+            private DisableOnDebugExtension(long timeoutSeconds) {
+                this.timeoutSeconds = timeoutSeconds;
+            }
+
+            @Override
+            public void beforeEach(ExtensionContext context) throws Exception {
+                if (java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments().toString().contains("jdwp")) {
+                    context.publishReportEntry("disableOnDebug", "debug detected");
+                    throw new org.opentest4j.TestAbortedException("Disabled on debug with timeoutSeconds=" + timeoutSeconds);
+                }
+            }
+        }
+
+        private class StopwatchExtension implements AfterTestExecutionCallback {
+            @Override
+            public void afterTestExecution(ExtensionContext context) throws Exception {
+                Optional<Long> start = context.getStore(ExtensionContext.Namespace.create(getClass(), context.getUniqueId())).get("startNanos", Long.class) == null
+                        ? Optional.empty()
+                        : Optional.of(context.getStore(ExtensionContext.Namespace.create(getClass(), context.getUniqueId())).get("startNanos", Long.class));
+                long startNanos = start.orElseGet(System::nanoTime);
+                long nanos = System.nanoTime() - startNanos;
+                events.add("stopwatch-finish:" + context.getRequiredTestMethod().getName() + ":" + nanos);
+            }
+        }
+
+        private class VerifierExtension implements AfterEachCallback {
+            @Override
+            public void afterEach(ExtensionContext context) throws Exception {
+                assertNotNull(events, "events should never be null");
+            }
+        }
+
+        private class CustomRuleExtension implements BeforeEachCallback, AfterEachCallback {
+            @Override
+            public void beforeEach(ExtensionContext context) throws Exception {
+                events.add("customRule-before:" + context.getRequiredTestMethod().getName());
+            }
+
+            @Override
+            public void afterEach(ExtensionContext context) throws Exception {
+                events.add("customRule-after:" + context.getRequiredTestMethod().getName());
+            }
+        }
+
+        private class RuleChainLikeExtension implements BeforeEachCallback, AfterEachCallback {
+            @Override
+            public void beforeEach(ExtensionContext context) throws Exception {
+                events.add("chain-outer-before");
+                events.add("chain-inner-before");
+                context.getStore(ExtensionContext.Namespace.create(getClass(), context.getUniqueId())).put("startNanos", System.nanoTime());
+            }
+
+            @Override
+            public void afterEach(ExtensionContext context) throws Exception {
+                events.add("chain-inner-after");
+                events.add("chain-outer-after");
+            }
+        }
     }
 
 
-    @RunWith(Parameterized.class)
-    @Category(Slow.class) // -> @Tag("Slow")
+    @org.junit.jupiter.api.Tag("Slow")
     public static class ParameterizedRunnerShowcase {
 
-        @Parameters(name = "{index}: concat({0},{1})={2}")
         public static Collection<Object[]> data() {
             return Arrays.asList(new Object[][]{
                     {"a", "b", "ab"},
@@ -207,29 +221,25 @@ public class Test4 {
             });
         }
 
-        @Parameterized.Parameter(0)
-        public String left;
+        static Stream<org.junit.jupiter.params.provider.Arguments> dataArgs() {
+            return data().stream().map(a -> org.junit.jupiter.params.provider.Arguments.of(a[0], a[1], a[2]));
+        }
 
-        @Parameterized.Parameter(1)
-        public String right;
-
-        @Parameterized.Parameter(2)
-        public String expected;
-
-        @Before
+        @org.junit.jupiter.api.BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
 
-        @Test
-        public void test_concat() {
+        @org.junit.jupiter.params.ParameterizedTest
+        @org.junit.jupiter.params.provider.MethodSource("dataArgs")
+        public void test_concat(String left, String right, String expected) {
             assertEquals(expected, left + right);
         }
     }
 
 
-    @RunWith(Suite.class)
-    @SuiteClasses({
+    @org.junit.platform.suite.api.Suite
+    @org.junit.platform.suite.api.SelectClasses({
             RuleAndLifecycleShowcase.class,
             ParameterizedRunnerShowcase.class
     })
@@ -238,10 +248,10 @@ public class Test4 {
     }
 
 
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(Fast.class)
-    @Categories.ExcludeCategory(Slow.class)
-    @SuiteClasses({
+    @org.junit.platform.suite.api.Suite
+    @org.junit.platform.suite.api.IncludeTags({"Fast"})
+    @org.junit.platform.suite.api.ExcludeTags({"Slow"})
+    @org.junit.platform.suite.api.SelectClasses({
             RuleAndLifecycleShowcase.class,
             ParameterizedRunnerShowcase.class
     })
@@ -250,10 +260,10 @@ public class Test4 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @org.junit.jupiter.api.Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
-        @Test
+        @org.junit.jupiter.api.Test
         public void willNotRun() {
             fail("Should never run");
         }

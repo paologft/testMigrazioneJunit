@@ -1,9 +1,11 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.rules.*;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
+import org.hamcrest.MatcherAssert;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.MethodOrderer.MethodName;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.extension.*;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.*;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -15,12 +17,15 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.reflect.Whitebox;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.mock;
@@ -30,7 +35,8 @@ import static org.powermock.api.mockito.PowerMockito.doReturn;
 import static org.powermock.api.mockito.PowerMockito.doThrow;
 
 @RunWith(PowerMockRunner.class)
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@TestMethodOrder(MethodName.class)
+@org.junit.jupiter.api.Timeout(value = 2000, unit = TimeUnit.MILLISECONDS)
 @PowerMockIgnore({
         "javax.management.*",
         "javax.net.ssl.*",
@@ -59,55 +65,60 @@ public class TestMockito2 {
     @InjectMocks
     private ServiceUnderTest sutWithInjectMocks;
 
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    @TempDir
+    Path tempDir;
 
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @RegisterExtension
+    static Extension classResource = new Extension() {
+        private final ExternalResourceAsExtension externalResourceAsExtension = new ExternalResourceAsExtension();
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(2);
-
-    @Rule
-    public TestName testName = new TestName();
-
-    @ClassRule
-    public static ExternalResource classResource = new ExternalResource() {
         @Override
-        protected void before() {
-            // placeholder
+        public void beforeAll(ExtensionContext context) throws Exception {
+            externalResourceAsExtension.beforeAll(context);
         }
 
         @Override
-        protected void after() {
-            // placeholder
+        public void afterAll(ExtensionContext context) throws Exception {
+            externalResourceAsExtension.afterAll(context);
         }
     };
 
-    @BeforeClass
+    static class ExternalResourceAsExtension implements BeforeAllCallback, AfterAllCallback {
+        @Override
+        public void beforeAll(ExtensionContext context) {
+            // placeholder
+        }
+
+        @Override
+        public void afterAll(ExtensionContext context) {
+            // placeholder
+        }
+    }
+
+    @BeforeAll
     public static void beforeAllJUnit4() {
         // placeholder
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // placeholder
     }
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         // initMocks è un classico pattern JUnit4 da migrare
         MockitoAnnotations.initMocks(this);
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         // placeholder
     }
 
     @Test
     public void test01_mockStatic_and_verifyStatic_and_tempFolder() throws Exception {
-        File tmp = temporaryFolder.newFile("fixture.txt");
+        File tmp = Files.createFile(tempDir.resolve("fixture.txt")).toFile();
         assertTrue(tmp.exists());
 
         mockStatic(FinalUtil.class);
@@ -117,8 +128,8 @@ public class TestMockito2 {
 
         String res = sutWithInjectMocks.process("input");
 
-        assertThat(res, containsString("DECORATED"));
-        assertThat(FinalUtil.now(), is("FAKE_NOW"));
+        MatcherAssert.assertThat(res, containsString("DECORATED"));
+        MatcherAssert.assertThat(FinalUtil.now(), is("FAKE_NOW"));
 
         // PowerMock verifyStatic
         verifyStatic(FinalUtil.class, times(1));
@@ -142,7 +153,7 @@ public class TestMockito2 {
 
         String out = spySut.process("abc");
 
-        assertThat(out, containsString("PRIVATE_OVERRIDDEN"));
+        MatcherAssert.assertThat(out, containsString("PRIVATE_OVERRIDDEN"));
 
         verifyPrivate(spySut, times(1))
                 .invoke("secretTransform", anyString());
@@ -158,29 +169,29 @@ public class TestMockito2 {
         Whitebox.setInternalState(sut, "collaborator", c);
 
         String secret = Whitebox.invokeMethod(sut, "secretTransform", "hello");
-        assertThat(secret, startsWith("S:"));
+        MatcherAssert.assertThat(secret, startsWith("S:"));
 
         String out = sut.process("hello");
-        assertThat(out, containsString("DEC(")); // decorate reale (se non mockato)
+        MatcherAssert.assertThat(out, containsString("DEC(")); // decorate reale (se non mockato)
     }
 
     @Test
     public void test04_expectedException_rule() {
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("boom");
-
         ServiceUnderTest sut = new ServiceUnderTest();
-        sut.failFast();
+        IllegalStateException ex = assertThrows(IllegalStateException.class, sut::failFast);
+        assertEquals("boom", ex.getMessage());
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test
     public void test05_testExpectedAttribute_junit4() {
-        String s = null;
-        // NPE intenzionale
-        s.length();
+        assertThrows(NullPointerException.class, () -> {
+            String s = null;
+            // NPE intenzionale
+            s.length();
+        });
     }
 
-    @Ignore("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
+    @Disabled("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
     @Test
     public void test06_ignore_annotation() {
         fail("Non dovrebbe essere eseguito");
@@ -210,13 +221,13 @@ public class TestMockito2 {
         String out = sut.process("ping");
 
         verify(c).callRemote(stringCaptor.capture());
-        assertThat(stringCaptor.getValue(), is("ping"));
+        MatcherAssert.assertThat(stringCaptor.getValue(), is("ping"));
 
         // InOrder
         InOrder inOrder = inOrder(c);
         inOrder.verify(c).callRemote(anyString());
 
-        assertThat(out, containsString("ANS(ping)"));
+        MatcherAssert.assertThat(out, containsString("ANS(ping)"));
     }
 
     @Test
@@ -244,7 +255,7 @@ public class TestMockito2 {
             helperSpy.explode();
             fail("Expected exception not thrown");
         } catch (RuntimeException ex) {
-            assertThat(ex.getMessage(), is("spy boom"));
+            MatcherAssert.assertThat(ex.getMessage(), is("spy boom"));
         }
     }
 
