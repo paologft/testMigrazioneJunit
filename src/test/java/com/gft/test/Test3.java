@@ -1,6 +1,5 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.runners.Enclosed;
@@ -12,6 +11,13 @@ import org.junit.runners.*;
 import org.junit.runners.Parameterized.Parameters;
 import org.junit.runners.Suite.SuiteClasses;
 import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,8 +26,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
@@ -113,40 +119,44 @@ public class Test3 {
                 });
 
         // -------------------- Lifecycle (JUnit4) -> JUnit5 @BeforeAll/@AfterAll/@BeforeEach/@AfterEach ----------
-        @BeforeClass
+        @BeforeAll
         public static void beforeClass() throws IOException {
             // touching class-level temp dir to force creation
             File root = classTmp.getRoot();
             assertTrue(root.exists());
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
         }
 
         // -------------------- Disabled test (JUnit4 @Ignore) -> JUnit5 @Disabled -------------------------------
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
         // -------------------- Combined expected + timeout (JUnit4) -> JUnit5 assertThrows + @Timeout ------------
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @Test
         public void test01_expected_and_timeout_together() throws Exception {
-            Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            Assertions.assertTimeoutPreemptively(java.time.Duration.ofMillis(100L), () -> {
+                Assertions.assertThrows(IllegalStateException.class, () -> {
+                    Thread.sleep(5L);
+                    throw new IllegalStateException("expected+timeout");
+                });
+            });
         }
 
         // -------------------- ExpectedException Rule -> assertThrows -------------------------------------------
@@ -170,7 +180,7 @@ public class Test3 {
         @Category(WindowsOnly.class) // -> @Tag("WindowsOnly")
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
+            assumeTrue(os.contains("win"), "Run only on Windows");
 
             // also show explicit assumption violated exception sometimes found in legacy code
             if (!os.contains("win")) {
@@ -231,7 +241,7 @@ public class Test3 {
         @Parameterized.Parameter(2)
         public String expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
@@ -271,7 +281,7 @@ public class Test3 {
     // =============================================================================================
     // 5) Class-level ignore (JUnit4) -> @Disabled (JUnit5)
     // =============================================================================================
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
         @Test

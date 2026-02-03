@@ -1,6 +1,5 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.theories.DataPoint;
@@ -14,8 +13,16 @@ import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -25,8 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.*;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
@@ -42,25 +49,25 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -130,7 +137,7 @@ public class Test2 {
         }
     };
 
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -171,15 +178,19 @@ public class Test2 {
         assertTrue(true);
     }
 
-    @Test(timeout = 50L)
-    public void test04_timeout_annotation() throws InterruptedException {
-        Thread.sleep(10L);
-        assertTrue(true);
+    @Test
+    public void test04_timeout_annotation() {
+        assertTimeout(Duration.ofMillis(50L), () -> {
+            Thread.sleep(10L);
+            assertTrue(true);
+        });
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     @Test
@@ -238,7 +249,7 @@ public class Test2 {
         @Parameterized.Parameter(1)
         public int expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
@@ -292,7 +303,7 @@ public class Test2 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {

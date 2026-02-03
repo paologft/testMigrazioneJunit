@@ -1,6 +1,5 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.runners.Enclosed;
@@ -15,14 +14,22 @@ import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 import org.junit.runners.model.Statement;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
@@ -72,7 +79,7 @@ public class Test4 {
         @Rule
         public final Verifier verifier = new Verifier() {
             @Override protected void verify() {
-                assertNotNull("events should never be null", events);
+                Assertions.assertNotNull(events, "events should never be null");
             }
         };
 
@@ -108,38 +115,40 @@ public class Test4 {
                 });
 
 
-        @BeforeClass
+        @BeforeAll
         public static void beforeClass() throws IOException {
             // touching class-level temp dir to force creation
             File root = classTmp.getRoot();
-            assertTrue(root.exists());
+            Assertions.assertTrue(root.exists());
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
         }
 
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
-            fail("Should never run");
+            Assertions.fail("Should never run");
         }
 
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @Test
         public void test01_expected_and_timeout_together() throws Exception {
-            Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            Assertions.assertTimeoutPreemptively(Duration.ofMillis(100L), () -> {
+                Thread.sleep(5L);
+                throw new IllegalStateException("expected+timeout");
+            });
         }
 
         @Test
@@ -152,7 +161,7 @@ public class Test4 {
         @Test
         public void test03_temp_folder_rule() throws IOException {
             File f = tmp.newFile("x.txt");
-            assertTrue(f.exists());
+            Assertions.assertTrue(f.exists());
             assertThat(f.getName(), endsWith(".txt"));
         }
 
@@ -160,21 +169,21 @@ public class Test4 {
         @Category(WindowsOnly.class)
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
+            Assumptions.assumeTrue(os.contains("win"), "Run only on Windows");
 
             // also show explicit assumption violated exception sometimes found in legacy code
             if (!os.contains("win")) {
                 throw new AssumptionViolatedException("not windows");
             }
 
-            assertTrue(true);
+            Assertions.assertTrue(true);
         }
 
         @Test
         public void test05_fail_try_catch_pattern() {
             try {
                 Integer.parseInt("NaN");
-                fail("Expected NumberFormatException");
+                Assertions.fail("Expected NumberFormatException");
             } catch (NumberFormatException ex) {
                 assertThat(ex.getMessage(), containsString("NaN"));
             }
@@ -189,7 +198,7 @@ public class Test4 {
         public void test07_rulechain_ordering_observable() {
             // just ensure chain markers are recorded somewhere during execution
             // note: the exact order can be asserted if your tool wants stable output
-            assertNotNull(events);
+            Assertions.assertNotNull(events);
         }
     }
 
@@ -216,14 +225,14 @@ public class Test4 {
         @Parameterized.Parameter(2)
         public String expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
 
         @Test
         public void test_concat() {
-            assertEquals(expected, left + right);
+            Assertions.assertEquals(expected, left + right);
         }
     }
 
@@ -250,12 +259,12 @@ public class Test4 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
         @Test
         public void willNotRun() {
-            fail("Should never run");
+            Assertions.fail("Should never run");
         }
     }
 }

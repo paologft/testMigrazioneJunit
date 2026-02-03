@@ -1,6 +1,5 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.theories.*;
@@ -11,15 +10,23 @@ import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
@@ -37,12 +44,12 @@ public class Test1 {
     // --------- Static lifecycle (JUnit4) -> @BeforeAll/@AfterAll (JUnit5) ----------
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
@@ -50,13 +57,13 @@ public class Test1 {
     // --------- Instance lifecycle (JUnit4) -> @BeforeEach/@AfterEach (JUnit5) ----------
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -129,7 +136,7 @@ public class Test1 {
     };
 
     // --------- Ignored tests/classes (JUnit4) -> @Disabled (JUnit5) ----------
-    @Ignore("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
+    @Disabled("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -138,16 +145,16 @@ public class Test1 {
     // --------- Basic assertions (JUnit4) ----------
     @Test
     public void test01_assertions_basic() {
-        assertTrue("buffer should contain init", buffer.contains("init"));
-        assertFalse("buffer should not contain X", buffer.contains("X"));
+        assertTrue(buffer.contains("init"), "buffer should contain init");
+        assertFalse(buffer.contains("X"), "buffer should not contain X");
         assertNull(null);
         assertNotNull(buffer);
 
-        assertEquals("size", 1, buffer.size());
-        assertNotEquals("not equals", 1, 2);
+        assertEquals(1, buffer.size(), "size");
+        assertNotEquals(1, 2, "not equals");
 
-        assertSame("same ref", buffer, buffer);
-        assertNotSame("different ref", buffer, new ArrayList<String>());
+        assertSame(buffer, buffer, "same ref");
+        assertNotSame(buffer, new ArrayList<String>(), "different ref");
 
         assertArrayEquals(new int[]{1,2,3}, new int[]{1,2,3});
     }
@@ -155,18 +162,18 @@ public class Test1 {
     // --------- Hamcrest via org.junit.Assert.assertThat (JUnit4) -> in JUnit5 use Hamcrest directly or AssertJ ----------
     @Test
     public void test02_hamcrest_assertThat() {
-        assertThat("buffer has init", buffer, hasItem("init"));
-        assertThat("counter", BEFORE_CLASS_COUNTER.get(), greaterThanOrEqualTo(1));
-        assertThat("string", "hello", allOf(startsWith("he"), endsWith("lo")));
+        org.hamcrest.MatcherAssert.assertThat("buffer has init", buffer, hasItem("init"));
+        org.hamcrest.MatcherAssert.assertThat("counter", BEFORE_CLASS_COUNTER.get(), greaterThanOrEqualTo(1));
+        org.hamcrest.MatcherAssert.assertThat("string", "hello", allOf(startsWith("he"), endsWith("lo")));
     }
 
     // --------- Assumptions (JUnit4) -> org.junit.jupiter.api.Assumptions ----------
     @Test
     public void test03_assumptions() {
-        assumeTrue("Run only when property is set",
-                Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")));
+        assumeTrue(Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")),
+                "Run only when property is set");
 
-        assumeThat(System.getProperty("os.name", "").toLowerCase(Locale.ROOT),
+        org.junit.Assume.assumeThat(System.getProperty("os.name", "").toLowerCase(Locale.ROOT),
                 not(containsString("unknown")));
 
         // if we got here, the assumptions held
@@ -174,16 +181,20 @@ public class Test1 {
     }
 
     // --------- @Test(timeout=...) (JUnit4) -> @Timeout or assertTimeout in JUnit5 ----------
-    @Test(timeout = 50L)
+    @Test
     public void test04_timeout_annotation() throws InterruptedException {
-        Thread.sleep(10L);
-        assertTrue(true);
+        assertTimeout(Duration.ofMillis(50L), () -> {
+            Thread.sleep(10L);
+            assertTrue(true);
+        });
     }
 
     // --------- @Test(expected=...) (JUnit4) -> assertThrows in JUnit5 ----------
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     // --------- ExpectedException Rule (JUnit4) -> assertThrows in JUnit5 ----------
@@ -198,8 +209,8 @@ public class Test1 {
     @Test
     public void test07_temporary_folder_rule() throws IOException {
         File f = tmp.newFile("demo.txt");
-        assertTrue("temp file should exist", f.exists());
-        assertThat(f.getName(), endsWith(".txt"));
+        assertTrue(f.exists(), "temp file should exist");
+        org.hamcrest.MatcherAssert.assertThat(f.getName(), endsWith(".txt"));
     }
 
     // --------- ErrorCollector Rule (JUnit4) -> assertAll (JUnit5) ----------
@@ -218,14 +229,14 @@ public class Test1 {
             Integer.parseInt("not-a-number");
             fail("Expected NumberFormatException");
         } catch (NumberFormatException expected) {
-            assertThat(expected.getMessage(), containsString("not-a-number"));
+            org.hamcrest.MatcherAssert.assertThat(expected.getMessage(), containsString("not-a-number"));
         }
     }
 
     // --------- Demonstrate TestName Rule (JUnit4) -> TestInfo in JUnit5 ----------
     @Test
     public void test10_test_name_rule() {
-        assertThat(testName.getMethodName(), startsWith("test10_"));
+        org.hamcrest.MatcherAssert.assertThat(testName.getMethodName(), startsWith("test10_"));
     }
 
     // -------------------------------------------------------------------------------------------------------------
@@ -249,7 +260,7 @@ public class Test1 {
         @Parameterized.Parameter(1)
         public int expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
@@ -274,7 +285,7 @@ public class Test1 {
 
         @Theory
         public void absIsNonNegative(int n) {
-            assumeTrue("skip min int edge if desired", n != Integer.MIN_VALUE);
+            assumeTrue(n != Integer.MIN_VALUE, "skip min int edge if desired");
             assertTrue(Math.abs(n) >= 0);
         }
 
@@ -311,7 +322,7 @@ public class Test1 {
     // -------------------------------------------------------------------------------------------------------------
     // Class-level Ignore (JUnit4) -> @Disabled in JUnit5
     // -------------------------------------------------------------------------------------------------------------
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {
