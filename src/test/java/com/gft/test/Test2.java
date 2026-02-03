@@ -9,7 +9,6 @@ import org.junit.experimental.theories.Theories;
 import org.junit.experimental.theories.Theory;
 import org.junit.rules.*;
 import org.junit.runner.Description;
-import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Suite;
@@ -23,10 +22,10 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
@@ -42,25 +41,25 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -130,7 +129,7 @@ public class Test2 {
         }
     };
 
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -138,16 +137,16 @@ public class Test2 {
 
     @Test
     public void test01_assertions_basic() {
-        assertTrue("buffer should contain init", buffer.contains("init"));
-        assertFalse("buffer should not contain X", buffer.contains("X"));
+        assertTrue(buffer.contains("init"), "buffer should contain init");
+        assertFalse(buffer.contains("X"), "buffer should not contain X");
         assertNull(null);
         assertNotNull(buffer);
 
-        assertEquals("size", 1, buffer.size());
-        assertNotEquals("not equals", 1, 2);
+        assertEquals(1, buffer.size(), "size");
+        assertNotEquals(1, 2, "not equals");
 
-        assertSame("same ref", buffer, buffer);
-        assertNotSame("different ref", buffer, new ArrayList<String>());
+        assertSame(buffer, buffer, "same ref");
+        assertNotSame(buffer, new ArrayList<String>(), "different ref");
 
         assertArrayEquals(new int[]{1,2,3}, new int[]{1,2,3});
     }
@@ -161,8 +160,8 @@ public class Test2 {
 
     @Test
     public void test03_assumptions() {
-        assumeTrue("Run only when property is set",
-                Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")));
+        assumeTrue(Boolean.parseBoolean(System.getProperty("run.assumption.tests", "true")),
+                "Run only when property is set");
 
         assumeThat(System.getProperty("os.name", "").toLowerCase(Locale.ROOT),
                 not(containsString("unknown")));
@@ -177,9 +176,11 @@ public class Test2 {
         assertTrue(true);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     @Test
@@ -192,7 +193,7 @@ public class Test2 {
     @Test
     public void test07_temporary_folder_rule() throws IOException {
         File f = tmp.newFile("demo.txt");
-        assertTrue("temp file should exist", f.exists());
+        assertTrue(f.exists(), "temp file should exist");
         assertThat(f.getName(), endsWith(".txt"));
     }
 
@@ -238,7 +239,7 @@ public class Test2 {
         @Parameterized.Parameter(1)
         public int expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // JUnit4 per-test setup
         }
@@ -260,7 +261,7 @@ public class Test2 {
 
         @Theory
         public void absIsNonNegative(int n) {
-            assumeTrue("skip min int edge if desired", n != Integer.MIN_VALUE);
+            assumeTrue(n != Integer.MIN_VALUE, "skip min int edge if desired");
             assertTrue(Math.abs(n) >= 0);
         }
 
@@ -292,7 +293,7 @@ public class Test2 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {

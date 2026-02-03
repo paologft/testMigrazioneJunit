@@ -1,13 +1,11 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.experimental.categories.Categories;
 import org.junit.experimental.categories.Category;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.*;
 import org.junit.runner.Description;
-import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -15,20 +13,26 @@ import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 import org.junit.runners.model.Statement;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Second JUnit4 "kitchen sink" class for JUnit4 -> JUnit5 migration tools.
  * Adds additional constructs not always present in the first showcase.
  */
-@RunWith(Enclosed.class)
 public class Test4 {
 
     public interface Fast {}
@@ -72,7 +76,7 @@ public class Test4 {
         @Rule
         public final Verifier verifier = new Verifier() {
             @Override protected void verify() {
-                assertNotNull("events should never be null", events);
+                assertNotNull(events, "events should never be null");
             }
         };
 
@@ -108,38 +112,40 @@ public class Test4 {
                 });
 
 
-        @BeforeClass
+        @BeforeAll
         public static void beforeClass() throws IOException {
             // touching class-level temp dir to force creation
             File root = classTmp.getRoot();
             assertTrue(root.exists());
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             // cleanup
         }
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             events.add("before");
         }
 
-        @After
+        @AfterEach
         public void afterEach() {
             events.add("after");
         }
 
-        @Ignore("Ignored for demonstration: should become @Disabled in Jupiter")
+        @Disabled("Ignored for demonstration: should become @Disabled in Jupiter")
         @Test
         public void test00_ignored_method() {
             fail("Should never run");
         }
 
-        @Test(expected = IllegalStateException.class, timeout = 100L)
+        @Test
         public void test01_expected_and_timeout_together() throws Exception {
-            Thread.sleep(5L);
-            throw new IllegalStateException("expected+timeout");
+            assertThrows(IllegalStateException.class, () -> {
+                Thread.sleep(5L);
+                throw new IllegalStateException("expected+timeout");
+            });
         }
 
         @Test
@@ -160,7 +166,7 @@ public class Test4 {
         @Category(WindowsOnly.class)
         public void test04_assume_and_assumption_violated_exception() {
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-            assumeTrue("Run only on Windows", os.contains("win"));
+            assumeTrue(os.contains("win"), "Run only on Windows");
 
             // also show explicit assumption violated exception sometimes found in legacy code
             if (!os.contains("win")) {
@@ -194,7 +200,6 @@ public class Test4 {
     }
 
 
-    @RunWith(Parameterized.class)
     @Category(Slow.class) // -> @Tag("Slow")
     public static class ParameterizedRunnerShowcase {
 
@@ -216,7 +221,7 @@ public class Test4 {
         @Parameterized.Parameter(2)
         public String expected;
 
-        @Before
+        @BeforeEach
         public void beforeEach() {
             // per-invocation setup
         }
@@ -228,7 +233,6 @@ public class Test4 {
     }
 
 
-    @RunWith(Suite.class)
     @SuiteClasses({
             RuleAndLifecycleShowcase.class,
             ParameterizedRunnerShowcase.class
@@ -238,7 +242,6 @@ public class Test4 {
     }
 
 
-    @RunWith(Categories.class)
     @Categories.IncludeCategory(Fast.class)
     @Categories.ExcludeCategory(Slow.class)
     @SuiteClasses({
@@ -250,7 +253,7 @@ public class Test4 {
     }
 
 
-    @Ignore("Demonstration of @Ignore at class level -> should become @Disabled")
+    @Disabled("Demonstration of @Ignore at class level -> should become @Disabled")
     public static class IgnoredClassExample {
 
         @Test

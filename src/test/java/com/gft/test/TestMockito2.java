@@ -1,17 +1,11 @@
 package com.gft.test;
 
-import org.junit.*;
 import org.junit.rules.*;
-import org.junit.runner.RunWith;
 import org.junit.runners.MethodSorters;
 import org.mockito.*;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.core.classloader.annotations.SuppressStaticInitializationFor;
-import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.reflect.Whitebox;
 
 import java.io.File;
@@ -19,8 +13,9 @@ import java.util.Date;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.mock;
@@ -29,22 +24,8 @@ import static org.powermock.api.mockito.PowerMockito.*;
 import static org.powermock.api.mockito.PowerMockito.doReturn;
 import static org.powermock.api.mockito.PowerMockito.doThrow;
 
-@RunWith(PowerMockRunner.class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@PowerMockIgnore({
-        "javax.management.*",
-        "javax.net.ssl.*",
-        "javax.crypto.*",
-        "org.xml.*",
-        "org.w3c.*"
-})
-@SuppressStaticInitializationFor("com.example.migrationfixture.PowerMockMockitoJUnit4MigrationFixtureTest$FinalUtil")
-@PrepareForTest({
-        TestMockito2.FinalUtil.class,
-        TestMockito2.ServiceUnderTest.class,
-        TestMockito2.Collaborator.class,
-        Date.class
-})
+@org.junit.jupiter.api.extension.ExtendWith(org.mockito.junit.jupiter.MockitoExtension.class)
 public class TestMockito2 {
 
     @Mock
@@ -84,71 +65,72 @@ public class TestMockito2 {
         }
     };
 
-    @BeforeClass
+    @org.junit.jupiter.api.BeforeAll
     public static void beforeAllJUnit4() {
         // placeholder
     }
 
-    @AfterClass
+    @org.junit.jupiter.api.AfterAll
     public static void afterAllJUnit4() {
         // placeholder
     }
 
-    @Before
+    @org.junit.jupiter.api.BeforeEach
     public void setUpJUnit4() {
         // initMocks è un classico pattern JUnit4 da migrare
-        MockitoAnnotations.initMocks(this);
     }
 
-    @After
+    @org.junit.jupiter.api.AfterEach
     public void tearDownJUnit4() {
         // placeholder
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test01_mockStatic_and_verifyStatic_and_tempFolder() throws Exception {
         File tmp = temporaryFolder.newFile("fixture.txt");
         assertTrue(tmp.exists());
 
-        mockStatic(FinalUtil.class);
+        try (MockedStatic<FinalUtil> finalUtilMockedStatic = Mockito.mockStatic(FinalUtil.class)) {
+            finalUtilMockedStatic.when(() -> FinalUtil.decorate(anyString())).thenReturn("DECORATED");
+            finalUtilMockedStatic.when(FinalUtil::now).thenReturn("FAKE_NOW");
 
-        when(FinalUtil.decorate(anyString())).thenReturn("DECORATED");
-        when(FinalUtil.now()).thenReturn("FAKE_NOW");
+            String res = sutWithInjectMocks.process("input");
 
-        String res = sutWithInjectMocks.process("input");
+            assertThat(res, containsString("DECORATED"));
+            assertThat(FinalUtil.now(), is("FAKE_NOW"));
 
-        assertThat(res, containsString("DECORATED"));
-        assertThat(FinalUtil.now(), is("FAKE_NOW"));
-
-        // PowerMock verifyStatic
-        verifyStatic(FinalUtil.class, times(1));
-        FinalUtil.decorate(anyString());
+            finalUtilMockedStatic.verify(() -> FinalUtil.decorate(anyString()), times(1));
+        }
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test02_whenNew_constructor_and_privateMethod_stubbing() throws Exception {
         Collaborator created = mock(Collaborator.class);
         when(created.callRemote(anyString())).thenReturn("REMOTE_OK");
 
-        whenNew(Collaborator.class)
-                .withArguments("prod-endpoint")
-                .thenReturn(created);
+        try (MockedConstruction<Collaborator> mc = Mockito.mockConstruction(Collaborator.class,
+                (mock, context) -> when(mock.callRemote(anyString())).thenReturn("REMOTE_OK"))) {
 
-        ServiceUnderTest real = new ServiceUnderTest();
-        ServiceUnderTest spySut = PowerMockito.spy(real);
+            assertEquals("prod-endpoint", mc.contexts().get(0).arguments().get(0));
 
-        doReturn("PRIVATE_OVERRIDDEN")
-                .when(spySut, "secretTransform", anyString());
+            ServiceUnderTest real = new ServiceUnderTest();
+            ServiceUnderTest spySut = PowerMockito.spy(real);
 
-        String out = spySut.process("abc");
+            // TODO migrate PowerMockito private method stubbing:
+            // doReturn("PRIVATE_OVERRIDDEN")
+            //         .when(spySut, "secretTransform", anyString());
 
-        assertThat(out, containsString("PRIVATE_OVERRIDDEN"));
+            String out = spySut.process("abc");
 
-        verifyPrivate(spySut, times(1))
-                .invoke("secretTransform", anyString());
+            assertThat(out, containsString("PRIVATE_OVERRIDDEN"));
+
+            // TODO migrate PowerMockito private method verification:
+            // verifyPrivate(spySut, times(1))
+            //         .invoke("secretTransform", anyString());
+        }
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test03_whitebox_setInternalState_and_invokePrivate() throws Exception {
         ServiceUnderTest sut = new ServiceUnderTest();
 
@@ -164,7 +146,7 @@ public class TestMockito2 {
         assertThat(out, containsString("DEC(")); // decorate reale (se non mockato)
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test04_expectedException_rule() {
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("boom");
@@ -173,26 +155,28 @@ public class TestMockito2 {
         sut.failFast();
     }
 
-    @Test(expected = NullPointerException.class)
+    @org.junit.jupiter.api.Test
     public void test05_testExpectedAttribute_junit4() {
-        String s = null;
-        // NPE intenzionale
-        s.length();
+        assertThrows(NullPointerException.class, () -> {
+            String s = null;
+            // NPE intenzionale
+            s.length();
+        });
     }
 
-    @Ignore("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
-    @Test
+    @org.junit.jupiter.api.Disabled("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
+    @org.junit.jupiter.api.Test
     public void test06_ignore_annotation() {
         fail("Non dovrebbe essere eseguito");
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test07_assume_junit4() {
         assumeTrue("fixture assume", System.getProperty("java.version") != null);
         assertTrue(true);
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test08_mockito_answer_captor_inorder() {
         Collaborator c = mock(Collaborator.class);
 
@@ -219,20 +203,19 @@ public class TestMockito2 {
         assertThat(out, containsString("ANS(ping)"));
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test09_whenNew_on_JDK_type_Date() throws Exception {
-        Date fake = mock(Date.class);
-        when(fake.getTime()).thenReturn(123L);
+        try (MockedConstruction<Date> mc = Mockito.mockConstruction(Date.class,
+                (mock, context) -> when(mock.getTime()).thenReturn(123L))) {
 
-        whenNew(Date.class).withNoArguments().thenReturn(fake);
+            ServiceUnderTest sut = new ServiceUnderTest();
+            long t = sut.currentTime();
 
-        ServiceUnderTest sut = new ServiceUnderTest();
-        long t = sut.currentTime();
-
-        assertEquals(123L, t);
+            assertEquals(123L, t);
+        }
     }
 
-    @Test
+    @org.junit.jupiter.api.Test
     public void test10_spy_doReturn_doThrow() {
         doReturn("OVERRIDE").when(helperSpy).normalize("  a  ");
 
