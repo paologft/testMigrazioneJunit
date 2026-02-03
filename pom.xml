@@ -28,15 +28,6 @@
 
     <dependencies>
         <!-- ========================= -->
-        <!-- JUnit 4 (your current file) -->
-        <!-- ========================= -->
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit4.version}</version>
-            <scope>test</scope>
-        </dependency>
-
         <!-- Hamcrest (used by assertThat + matchers) -->
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -47,7 +38,6 @@
 
         <!-- ========================= -->
         <!-- JUnit 5 (for post-migration / mixed runs) -->
-        <!-- ========================= -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
@@ -62,10 +52,26 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Vintage Engine: allows running JUnit 3/4 tests on JUnit Platform -->
+        <!-- JUnit 5 Aggregator -->
         <dependency>
-            <groupId>org.junit.vintage</groupId>
-            <artifactId>junit-vintage-engine</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit5.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Parameterized Tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>${junit5.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JUnit Platform Suite (if Suite classes exist) -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
             <version>${junit5.version}</version>
             <scope>test</scope>
         </dependency>

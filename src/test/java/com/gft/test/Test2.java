@@ -1,39 +1,53 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.theories.DataPoint;
-import org.junit.experimental.theories.DataPoints;
-import org.junit.experimental.theories.Theories;
-import org.junit.experimental.theories.Theory;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Suite;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer.MethodName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.platform.suite.api.Suite;
+import org.junit.platform.suite.api.SelectClasses;
+import org.junit.platform.suite.api.IncludeTags;
+import org.junit.platform.suite.api.ExcludeTags;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 
-/**
- * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
- * Contains most features that typically require migration changes.
- */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Category(Test2.FastTests.class)
+@Tag("FastTests")
+@TestMethodOrder(MethodName.class)
+@Timeout(value = 250, unit = TimeUnit.MILLISECONDS)
 public class Test2 {
 
     public interface FastTests {}
@@ -42,95 +56,62 @@ public class Test2 {
 
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
 
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
 
-    @Rule
-    public final TestName testName = new TestName();
+    @TempDir
+    Path tempDir;
 
-    @Rule
-    public final TemporaryFolder tmp = new TemporaryFolder();
+    @RegisterExtension
+    static InlineExtension inlineExtension = new InlineExtension();
 
-    @Rule
-    public final ErrorCollector errors = new ErrorCollector();
-
-    @Rule
-    public final ExpectedException thrown = ExpectedException.none();
-
-    @Rule
-    public final Timeout globalTimeout = Timeout.millis(250);
-
-    @Rule
-    public final ExternalResource resource = new ExternalResource() {
+    public static class InlineExtension implements BeforeEachCallback, AfterEachCallback, TestWatcher {
         @Override
-        protected void before() {
+        public void beforeEach(ExtensionContext context) {
+            buffer.add("chain-outer-before");
+            buffer.add("chain-inner-before");
             buffer.add("resource-before");
         }
 
         @Override
-        protected void after() {
+        public void afterEach(ExtensionContext context) {
             buffer.add("resource-after");
-        }
-    };
-
-    @Rule
-    public final TestWatcher watcher = new TestWatcher() {
-        @Override protected void starting(Description description) {
-            // could log: description.getMethodName()
+            buffer.add("chain-inner-after");
+            buffer.add("chain-outer-after");
         }
 
-        @Override protected void failed(Throwable e, Description description) {
-            // could log failure
+        @Override
+        public void testSuccessful(ExtensionContext context) {
+            // no-op
         }
 
-        @Override protected void succeeded(Description description) {
-            // could log success
+        @Override
+        public void testFailed(ExtensionContext context, Throwable cause) {
+            // no-op
         }
-    };
+    }
 
-    @Rule
-    public final RuleChain chain = RuleChain
-            .outerRule(new ExternalResource() {
-                @Override protected void before() { buffer.add("chain-outer-before"); }
-                @Override protected void after() { buffer.add("chain-outer-after"); }
-            })
-            .around(new ExternalResource() {
-                @Override protected void before() { buffer.add("chain-inner-before"); }
-                @Override protected void after() { buffer.add("chain-inner-after"); }
-            });
-
-    @ClassRule
-    public static final ExternalResource classResource = new ExternalResource() {
-        @Override protected void before() {
-            // global once-per-class resource init
-        }
-
-        @Override protected void after() {
-            // global cleanup
-        }
-    };
-
-    @Ignore("Demonstration of @Ignore at method level")
+    @Disabled("Demonstration of @Ignore at method level")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -171,37 +152,42 @@ public class Test2 {
         assertTrue(true);
     }
 
-    @Test(timeout = 50L)
+    @Test
+    @org.junit.jupiter.api.Timeout(value=50, unit=java.util.concurrent.TimeUnit.MILLISECONDS)
     public void test04_timeout_annotation() throws InterruptedException {
         Thread.sleep(10L);
         assertTrue(true);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
+        assertThat(exception.getMessage(), containsString("state"));
     }
 
     @Test
     public void test07_temporary_folder_rule() throws IOException {
-        File f = tmp.newFile("demo.txt");
+        File f = Files.createFile(tempDir.resolve("demo.txt")).toFile();
         assertTrue("temp file should exist", f.exists());
         assertThat(f.getName(), endsWith(".txt"));
     }
 
     @Test
     public void test08_error_collector() {
-        errors.checkThat("a", "a", is("a"));
-        errors.checkThat("1+1", 1 + 1, is(2));
-        errors.checkThat("contains init", buffer, hasItem("init"));
-        // test continues even if a check fails
+        Assertions.assertAll(
+            () -> assertThat("a", "a", is("a")),
+            () -> assertThat("1+1", 1 + 1, is(2)),
+            () -> assertThat("contains init", buffer, hasItem("init"))
+        );
     }
 
     @Test
@@ -215,15 +201,59 @@ public class Test2 {
     }
 
     @Test
-    public void test10_test_name_rule() {
-        assertThat(testName.getMethodName(), startsWith("test10_"));
+    public void test10_test_name_rule(TestInfo testInfo) {
+        assertThat(testInfo.getTestMethod().get().getName(), startsWith("test10_"));
     }
 
+    @ParameterizedTest
+    @MethodSource("data")
+    public void parsesIntegers(String input, int expected) {
+        assertEquals(expected, Integer.parseInt(input));
+    }
 
-    @RunWith(Parameterized.class)
+    public static Iterable<Object[]> data() {
+        return Arrays.asList(new Object[][]{
+                {"0", 0},
+                {"7", 7},
+                {"42", 42}
+        });
+    }
+
+    @Suite
+    @SelectClasses({Test2.class, ParameterizedExample.class, TheoriesExample.class})
+    public static class AllTestsSuite {
+        // no code
+    }
+
+    @Suite
+    @SelectClasses({Test2.class, ParameterizedExample.class})
+    @IncludeTags({"FastTests"})
+    @ExcludeTags({"SlowTests"})
+    public static class FastOnlySuite {
+        // no code
+    }
+
+    @Disabled("Demonstration of @Ignore at class level")
+    public static class IgnoredClassExample {
+        @Test
+        public void willNotRun() {
+            fail("Should never run");
+        }
+    }
+
     public static class ParameterizedExample {
 
-        @Parameterized.Parameters(name = "{index}: parseInt({0}) = {1}") // -> JUnit5 display names differ
+        @BeforeEach
+        public void beforeEach() {
+            // JUnit4 per-test setup
+        }
+
+        @ParameterizedTest
+        @MethodSource("data")
+        public void parsesIntegers(String input, int expected) {
+            assertEquals(expected, Integer.parseInt(input));
+        }
+
         public static Iterable<Object[]> data() {
             return Arrays.asList(new Object[][]{
                     {"0", 0},
@@ -231,72 +261,36 @@ public class Test2 {
                     {"42", 42}
             });
         }
-
-        @Parameterized.Parameter(0)
-        public String input;
-
-        @Parameterized.Parameter(1)
-        public int expected;
-
-        @Before
-        public void beforeEach() {
-            // JUnit4 per-test setup
-        }
-
-        @Test
-        public void parsesIntegers() {
-            assertEquals(expected, Integer.parseInt(input));
-        }
     }
 
-    @RunWith(Theories.class)
     public static class TheoriesExample {
 
-        @DataPoints
-        public static int[] numbers = new int[]{-1, 0, 1, 2, 10};
+        static int[] numbersArray = new int[]{-1, 0, 1, 2, 10};
 
-        @DataPoint
-        public static int special = 100;
+        static int special = 100;
 
-        @Theory
+        @ParameterizedTest
+        @MethodSource("numbers")
         public void absIsNonNegative(int n) {
             assumeTrue("skip min int edge if desired", n != Integer.MIN_VALUE);
             assertTrue(Math.abs(n) >= 0);
         }
 
-        @Theory
+        @ParameterizedTest
+        @MethodSource("additionPairs")
         public void additionIsCommutative(int a, int b) {
             assertEquals(a + b, b + a);
         }
-    }
 
-    @RunWith(Suite.class)
-    @Suite.SuiteClasses({
-            Test2.class,
-            ParameterizedExample.class,
-            TheoriesExample.class
-    })
-    public static class AllTestsSuite {
-        // no code
-    }
+        public static Stream<Integer> numbers() {
+            return Arrays.stream(numbersArray);
+        }
 
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(FastTests.class)
-    @Categories.ExcludeCategory(SlowTests.class)
-    @Suite.SuiteClasses({
-            Test2.class,
-            ParameterizedExample.class
-    })
-    public static class FastOnlySuite {
-        // no code
-    }
-
-
-    @Ignore("Demonstration of @Ignore at class level")
-    public static class IgnoredClassExample {
-        @Test
-        public void willNotRun() {
-            fail("Should never run");
+        public static Stream<Arguments> additionPairs() {
+            int[] nums = numbersArray;
+            return IntStream.range(0, nums.length).boxed()
+                    .flatMap(i -> IntStream.range(0, nums.length)
+                            .mapToObj(j -> Arguments.of(nums[i], nums[j])));
         }
     }
 }
