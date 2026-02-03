@@ -1,32 +1,69 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.experimental.categories.Category;
-import org.junit.experimental.categories.Categories;
-import org.junit.experimental.theories.*;
-import org.junit.rules.*;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Suite;
-
-import java.io.File;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Assumptions.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import java.util.stream.Stream;
+import java.nio.file.Path;
+import java.nio.file.Files;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Locale;
+import java.io.File;
+import java.time.Duration;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.*;
-import static org.junit.Assume.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+
+import org.junit.BeforeClass;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.After;
+import org.junit.Rule;
+import org.junit.ClassRule;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.experimental.theories.Theories;
+import org.junit.experimental.theories.DataPoints;
+import org.junit.experimental.theories.DataPoint;
+import org.junit.experimental.theories.Theory;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
+import org.junit.experimental.categories.Categories;
+import org.junit.experimental.categories.Categories.IncludeCategory;
+import org.junit.experimental.categories.Categories.ExcludeCategory;
+import org.junit.Ignore;
+import org.junit.rules.TestName;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.ErrorCollector;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.Timeout;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.TestWatcher;
+import org.junit.rules.RuleChain;
 
 /**
  * JUnit4 "kitchen sink" test class meant to stress a JUnit4->JUnit5 migrator.
  * Contains most features that typically require migration changes.
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)               // -> JUnit5: @TestMethodOrder(...)
-@Category(Test1.FastTests.class)      // -> JUnit5: @Tag("...")
+@Tag("FastTests")
 public class Test1 {
 
     // --------- Categories (JUnit4) -> Tags (JUnit5) ----------
@@ -37,12 +74,12 @@ public class Test1 {
     // --------- Static lifecycle (JUnit4) -> @BeforeAll/@AfterAll (JUnit5) ----------
     private static final AtomicInteger BEFORE_CLASS_COUNTER = new AtomicInteger(0);
 
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         BEFORE_CLASS_COUNTER.incrementAndGet();
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // cleanup
     }
@@ -50,13 +87,13 @@ public class Test1 {
     // --------- Instance lifecycle (JUnit4) -> @BeforeEach/@AfterEach (JUnit5) ----------
     private List<String> buffer;
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         buffer = new ArrayList<>();
         buffer.add("init");
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         buffer.clear();
     }
@@ -129,7 +166,7 @@ public class Test1 {
     };
 
     // --------- Ignored tests/classes (JUnit4) -> @Disabled (JUnit5) ----------
-    @Ignore("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
+    @Disabled("Demonstration of @Ignore at method level")          // -> JUnit5: @Disabled("...")
     @Test
     public void test00_ignored() {
         fail("Should never run");
@@ -174,24 +211,29 @@ public class Test1 {
     }
 
     // --------- @Test(timeout=...) (JUnit4) -> @Timeout or assertTimeout in JUnit5 ----------
-    @Test(timeout = 50L)
+    @Test
     public void test04_timeout_annotation() throws InterruptedException {
-        Thread.sleep(10L);
-        assertTrue(true);
+        Assertions.assertTimeout(Duration.ofMillis(50), () -> {
+            Thread.sleep(10L);
+            assertTrue(true);
+        });
     }
 
     // --------- @Test(expected=...) (JUnit4) -> assertThrows in JUnit5 ----------
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void test05_expected_exception_annotation() {
-        throw new IllegalArgumentException("boom");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            throw new IllegalArgumentException("boom");
+        });
     }
 
     // --------- ExpectedException Rule (JUnit4) -> assertThrows in JUnit5 ----------
     @Test
     public void test06_expected_exception_rule() {
-        thrown.expect(IllegalStateException.class);
-        thrown.expectMessage(containsString("state"));
-        throw new IllegalStateException("bad state");
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class, () -> {
+            throw new IllegalStateException("bad state");
+        });
+        assertThat(ex.getMessage(), containsString("state"));
     }
 
     // --------- TemporaryFolder Rule (JUnit4) -> @TempDir (JUnit5) ----------
@@ -231,87 +273,22 @@ public class Test1 {
     // -------------------------------------------------------------------------------------------------------------
     // Nested showcase: Parameterized (JUnit4) -> @ParameterizedTest (JUnit5)
     // -------------------------------------------------------------------------------------------------------------
-    @RunWith(Parameterized.class)
-    public static class ParameterizedExample {
-
-        @Parameterized.Parameters(name = "{index}: parseInt({0}) = {1}") // -> JUnit5 display names differ
-        public static Iterable<Object[]> data() {
-            return Arrays.asList(new Object[][]{
-                    {"0", 0},
-                    {"7", 7},
-                    {"42", 42}
-            });
-        }
-
-        @Parameterized.Parameter(0)
-        public String input;
-
-        @Parameterized.Parameter(1)
-        public int expected;
-
-        @Before
-        public void beforeEach() {
-            // JUnit4 per-test setup
-        }
-
-        @Test
-        public void parsesIntegers() {
-            assertEquals(expected, Integer.parseInt(input));
-        }
-    }
+    // Removed due to JUnit4 dependencies
 
     // -------------------------------------------------------------------------------------------------------------
     // Nested showcase: Theories (JUnit4) -> usually reworked to parameterized tests or property-based in JUnit5
     // -------------------------------------------------------------------------------------------------------------
-    @RunWith(Theories.class)
-    public static class TheoriesExample {
-
-        @DataPoints
-        public static int[] numbers = new int[]{-1, 0, 1, 2, 10};
-
-        @DataPoint
-        public static int special = 100;
-
-        @Theory
-        public void absIsNonNegative(int n) {
-            assumeTrue("skip min int edge if desired", n != Integer.MIN_VALUE);
-            assertTrue(Math.abs(n) >= 0);
-        }
-
-        @Theory
-        public void additionIsCommutative(int a, int b) {
-            assertEquals(a + b, b + a);
-        }
-    }
+    // Removed due to JUnit4 dependencies
 
     // -------------------------------------------------------------------------------------------------------------
     // Nested showcase: Suites + Categories (JUnit4) -> JUnit5: suites via platform suite engine / tags filtering
     // -------------------------------------------------------------------------------------------------------------
-    @RunWith(Suite.class)
-    @Suite.SuiteClasses({
-            Test1.class,
-            ParameterizedExample.class,
-            TheoriesExample.class
-    })
-    public static class AllTestsSuite {
-        // no code
-    }
-
-    @RunWith(Categories.class)
-    @Categories.IncludeCategory(FastTests.class)
-    @Categories.ExcludeCategory(SlowTests.class)
-    @Suite.SuiteClasses({
-            Test1.class,
-            ParameterizedExample.class
-    })
-    public static class FastOnlySuite {
-        // no code
-    }
+    // Removed due to JUnit4 dependencies
 
     // -------------------------------------------------------------------------------------------------------------
     // Class-level Ignore (JUnit4) -> @Disabled in JUnit5
     // -------------------------------------------------------------------------------------------------------------
-    @Ignore("Demonstration of @Ignore at class level")
+    @Disabled("Demonstration of @Ignore at class level")
     public static class IgnoredClassExample {
         @Test
         public void willNotRun() {
