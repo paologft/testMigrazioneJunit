@@ -69,6 +69,14 @@
             <version>${junit5.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- JUnit Jupiter aggregate dependency -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit5.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
