@@ -47,25 +47,10 @@ public class TestAkka3 {
     private static ActorSystem system;
     private static LoggingAdapter log;
 
-    // --- MIGRATION TARGET: ActorMaterializer + ActorMaterializerSettings (2.6 deprecations) ---
-    private static ActorMaterializerSettings materializerSettings;
-    private static ActorMaterializer materializer;
-
     @BeforeClass
     public static void setup() {
         system = ActorSystem.create("uplift-migration-test");
         log = Logging.getLogger(system, "uplift-migration-test");
-
-        // (Akka 2.6) ActorMaterializer è deprecato: "Use the system wide materializer ..."
-        // Questo è ESATTAMENTE il tipo di costrutto che un tool dovrebbe migrare. [1](https://doc.akka.io/japi/akka-core/current/akka/stream/ActorMaterializer.html)
-        materializerSettings =
-                ActorMaterializerSettings.create(system)
-                        // in 2.6 molte personalizzazioni qui sono scoraggiate, si preferiscono Attributes
-                        .withInputBuffer(1, 1)
-                        .withDispatcher("akka.actor.default-dispatcher")
-                        .withSupervisionStrategy(deciderResuming()); // in 2.6 approccio “settings” è deprecato [1](https://doc.akka.io/japi/akka-core/current/akka/stream/ActorMaterializer.html)
-
-        materializer = ActorMaterializer.create(materializerSettings, system);
     }
 
     @AfterClass
@@ -75,7 +60,6 @@ public class TestAkka3 {
         akka.testkit.TestKit.shutdownActorSystem(system, timeout, true);
 
         system = null;
-        materializer = null;
     }
 
     /**
@@ -97,7 +81,7 @@ public class TestAkka3 {
         // MIGRATION TARGET: runWith(sink, materializer) => spesso: runWith(sink, system) o SystemMaterializer.get(system).materializer()
         // ActorMaterializer deprecato in 2.6. [1](https://doc.akka.io/japi/akka-core/current/akka/stream/ActorMaterializer.html)[2](https://github.com/akka/akka-http/issues/3128)
         CompletionStage<List<Integer>> out =
-                src.runWith(Sink.seq(), materializer);
+                src.runWith(Sink.seq(), SystemMaterializer.get(system).materializer());
 
         List<Integer> result = out.toCompletableFuture().get(5, TimeUnit.SECONDS);
 

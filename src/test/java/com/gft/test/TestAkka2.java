@@ -5,9 +5,9 @@ import akka.japi.pf.PFBuilder;
 import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.PatternsCS;
 import akka.stream.ActorAttributes;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
+import akka.stream.Materializer;
 import akka.stream.Supervision;
+import akka.stream.SystemMaterializer;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
@@ -51,12 +51,7 @@ public class TestAkka2 {
             return Supervision.stop();
         };
 
-        final ActorMaterializerSettings settings =
-                ActorMaterializerSettings.create(system)
-                        .withSupervisionStrategy(decider);
-
-        final ActorMaterializer actorMaterializer =
-                ActorMaterializer.create(settings, system);
+        final Materializer materializer = SystemMaterializer.get(system).materializer();
 
 
         PartialFunction<Throwable, Integer> recoverPf =
@@ -70,13 +65,12 @@ public class TestAkka2 {
                         .map(i -> 10 / (i - 3))
                         .withAttributes(ActorAttributes.supervisionStrategy(decider))
                         .recover(recoverPf)
-                        .runWith(Sink.seq(), actorMaterializer);
+                        .runWith(Sink.seq(), materializer);
 
         List<Integer> values = result.toCompletableFuture().get(3, TimeUnit.SECONDS);
         assertNotNull(values);
         assertTrue(values.contains(-999));
 
-        actorMaterializer.shutdown();
     }
 
     @Test
@@ -111,7 +105,7 @@ public class TestAkka2 {
             FiniteDuration initialDelay = Duration.create(100, TimeUnit.MILLISECONDS);
             FiniteDuration interval = Duration.create(200, TimeUnit.MILLISECONDS);
 
-            cancellable = context().system().scheduler().schedule(
+            cancellable = context().system().scheduler().scheduleWithFixedDelay(
                     initialDelay,
                     interval,
                     self(),
