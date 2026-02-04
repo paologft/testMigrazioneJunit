@@ -28,7 +28,7 @@
         <scala.binary.version>2.12</scala.binary.version>
 
         <!-- Baseline Akka 2.5.x -->
-        <akka.version>2.5.23</akka.version>
+        <akka.version>2.6.19</akka.version>
 
 
     </properties>
