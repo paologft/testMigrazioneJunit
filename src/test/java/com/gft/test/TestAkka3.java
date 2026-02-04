@@ -11,7 +11,6 @@ import akka.pattern.PatternsCS;
 import akka.stream.*;
 import akka.stream.javadsl.*;
 
-import akka.testkit.TestKit;
 import org.junit.*;
 
 import scala.Function1;
@@ -48,24 +47,14 @@ public class TestAkka3 {
     private static LoggingAdapter log;
 
     // --- MIGRATION TARGET: ActorMaterializer + ActorMaterializerSettings (2.6 deprecations) ---
-    private static ActorMaterializerSettings materializerSettings;
-    private static ActorMaterializer materializer;
+    private static Materializer materializer;
 
     @BeforeClass
     public static void setup() {
         system = ActorSystem.create("uplift-migration-test");
         log = Logging.getLogger(system, "uplift-migration-test");
 
-        // (Akka 2.6) ActorMaterializer è deprecato: "Use the system wide materializer ..."
-        // Questo è ESATTAMENTE il tipo di costrutto che un tool dovrebbe migrare. [1](https://doc.akka.io/japi/akka-core/current/akka/stream/ActorMaterializer.html)
-        materializerSettings =
-                ActorMaterializerSettings.create(system)
-                        // in 2.6 molte personalizzazioni qui sono scoraggiate, si preferiscono Attributes
-                        .withInputBuffer(1, 1)
-                        .withDispatcher("akka.actor.default-dispatcher")
-                        .withSupervisionStrategy(deciderResuming()); // in 2.6 approccio “settings” è deprecato [1](https://doc.akka.io/japi/akka-core/current/akka/stream/ActorMaterializer.html)
-
-        materializer = ActorMaterializer.create(materializerSettings, system);
+        materializer = SystemMaterializer.get(system).materializer();
     }
 
     @AfterClass
