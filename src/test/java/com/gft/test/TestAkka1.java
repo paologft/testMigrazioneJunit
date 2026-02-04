@@ -1,22 +1,20 @@
 package com.gft.test;
 
 import akka.actor.*;
-import akka.japi.function.Function;
 import akka.japi.pf.PFBuilder;
 import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.PatternsCS;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
 import akka.stream.ActorAttributes;
 
+import akka.stream.Materializer;
 import akka.stream.Supervision;
+import akka.stream.SystemMaterializer;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import akka.testkit.javadsl.TestKit;
 import akka.util.Timeout;
 import org.junit.*;
 
-import scala.Function1;
 import scala.PartialFunction;
 import scala.concurrent.ExecutionContextExecutor;
 import scala.concurrent.duration.Duration;
@@ -67,14 +65,7 @@ public class TestAkka1 {
             return Supervision.stop();
         };
 
-        // (LEGACY) Setup tipico 2.5: ActorMaterializer + settings + supervision strategy
-        final ActorMaterializerSettings settings =
-                ActorMaterializerSettings.create(system)
-                        .withSupervisionStrategy(decider); // in 2.6 è spinta verso stream attributes
-
-        final ActorMaterializer actorMaterializer =
-                ActorMaterializer.create(settings, system); // deprecato in 2.6
-
+        final Materializer materializer = SystemMaterializer.get(system).materializer();
 
         PartialFunction<Throwable, Integer> recoverPf =
                 new PFBuilder<Throwable, Integer>()
@@ -89,14 +80,11 @@ public class TestAkka1 {
                         // (già in 2.5 è possibile usare stream attributes)
                         .withAttributes(ActorAttributes.supervisionStrategy(decider))
                         .recover(recoverPf)
-                        .runWith(Sink.seq(), actorMaterializer);
+                        .runWith(Sink.seq(), materializer);
 
         List<Integer> values = result.toCompletableFuture().get(3, TimeUnit.SECONDS);
         assertNotNull(values);
         assertTrue(values.contains(-999));
-
-        // Shutdown del materializer (in 2.6 la gestione cambia)
-        actorMaterializer.shutdown();
     }
 
     // --------------------------------------------------------------------------------------------

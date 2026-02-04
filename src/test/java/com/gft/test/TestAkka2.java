@@ -7,6 +7,7 @@ import akka.pattern.PatternsCS;
 import akka.stream.ActorAttributes;
 import akka.stream.ActorMaterializer;
 import akka.stream.ActorMaterializerSettings;
+import akka.stream.Materializer;
 import akka.stream.Supervision;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -51,12 +52,9 @@ public class TestAkka2 {
             return Supervision.stop();
         };
 
-        final ActorMaterializerSettings settings =
-                ActorMaterializerSettings.create(system)
-                        .withSupervisionStrategy(decider);
-
-        final ActorMaterializer actorMaterializer =
-                ActorMaterializer.create(settings, system);
+        ActorMaterializerSettings settings = ActorMaterializerSettings.create(system)
+                .withSupervisionStrategy(decider);
+        Materializer materializer = ActorMaterializer.create(settings, system);
 
 
         PartialFunction<Throwable, Integer> recoverPf =
@@ -68,15 +66,12 @@ public class TestAkka2 {
         CompletionStage<List<Integer>> result =
                 Source.range(1, 5)
                         .map(i -> 10 / (i - 3))
-                        .withAttributes(ActorAttributes.supervisionStrategy(decider))
                         .recover(recoverPf)
-                        .runWith(Sink.seq(), actorMaterializer);
+                        .runWith(Sink.seq(), materializer);
 
         List<Integer> values = result.toCompletableFuture().get(3, TimeUnit.SECONDS);
         assertNotNull(values);
         assertTrue(values.contains(-999));
-
-        actorMaterializer.shutdown();
     }
 
     @Test

@@ -9,8 +9,7 @@ import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.Patterns;
 import akka.pattern.PatternsCS;
 import akka.stream.ActorAttributes;
-import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
+import akka.stream.Materializer;
 import akka.stream.Supervision;
 import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
@@ -40,21 +39,14 @@ public class TestAkka4 {
     private static LoggingAdapter log;
 
 
-    private static ActorMaterializerSettings materializerSettings;
-    private static ActorMaterializer materializer;
+    private static Materializer materializer;
 
     @BeforeClass
     public static void setup() {
         system = ActorSystem.create("uplift-migration-test");
         log = Logging.getLogger(system, "uplift-migration-test");
 
-        materializerSettings =
-                ActorMaterializerSettings.create(system)
-                        .withInputBuffer(1, 1)
-                        .withDispatcher("akka.actor.default-dispatcher")
-                        .withSupervisionStrategy(deciderResuming());
-
-        materializer = ActorMaterializer.create(materializerSettings, system);
+        materializer = ActorMaterializer.create(system);
     }
 
     @AfterClass
@@ -205,3 +197,4 @@ public class TestAkka4 {
         };
     }
 }
+

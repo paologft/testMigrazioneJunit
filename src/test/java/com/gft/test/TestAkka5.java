@@ -3,7 +3,6 @@ package com.gft.test;
 import akka.NotUsed;
 import akka.actor.ActorSystem;
 import akka.stream.ActorMaterializer;
-import akka.stream.ActorMaterializerSettings;
 import akka.stream.Materializer;
 import akka.stream.javadsl.Flow;
 import akka.stream.javadsl.Sink;
@@ -28,16 +27,7 @@ public class TestAkka5 {
     public static void setup() {
         system = ActorSystem.create("test-system");
 
-        // --- Settings personalizzati (Akka 2.5.23) ---
-        ActorMaterializerSettings settings =
-                ActorMaterializerSettings.create(system)
-                        .withInputBuffer(2, 16) // initial=2, max=16
-                        .withDispatcher("akka.actor.default-dispatcher")
-                        .withDebugLogging(true);
-
-        // Materializer basato su ActorMaterializer con settings custom
-        materializer = ActorMaterializer.create(settings, system);
-        // --------------------------------------------
+        materializer = ActorMaterializer.create(system);
     }
 
     @AfterClass
