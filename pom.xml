@@ -24,6 +24,13 @@
         <surefire.version>3.2.5</surefire.version>
         <compiler.plugin.version>3.11.0</compiler.plugin.version>
 
+        <!-- Scegli la Scala binary version: 2.12 oppure 2.13 -->
+        <scala.binary.version>2.12</scala.binary.version>
+
+        <!-- Baseline Akka 2.5.x -->
+        <akka.version>2.5.23</akka.version>
+
+
     </properties>
 
     <dependencies>
@@ -67,7 +74,43 @@
         </dependency>
 
 
+        <!-- Akka classic actors -->
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-actor_${scala.binary.version}</artifactId>
+            <version>${akka.version}</version>
+        </dependency>
+
+        <!-- Akka Streams (usato dalla fixture: ActorMaterializer, Source/Sink, ecc.) -->
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-stream_${scala.binary.version}</artifactId>
+            <version>${akka.version}</version>
+        </dependency>
+
+        <!-- TestKit classic (usato dalla fixture: akka.testkit.javadsl.TestKit) -->
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-testkit_${scala.binary.version}</artifactId>
+            <version>${akka.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>2.12.3</version>
+        </dependency>
+
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>akka-repo</id>
+            <name>Akka Maven Repository</name>
+            <url>https://repo.akka.io/maven</url>
+        </repository>
+    </repositories>
 
     <build>
     <plugins>
@@ -105,6 +148,5 @@
             </configuration>
         </plugin>
     </plugins>
-
-    </build>
+</build>
 </project>
