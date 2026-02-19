@@ -1,9 +1,14 @@
 package com.gft.test;
 
-import org.junit.*;
-import org.junit.rules.*;
-import org.junit.runners.MethodSorters;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.MethodOrderer.MethodName;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.Timeout;
 import org.mockito.*;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -15,12 +20,15 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.reflect.Whitebox;
 
 import java.io.File;
-
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.*;
-import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -42,8 +50,9 @@ import static org.powermock.api.mockito.PowerMockito.*;
  * - Mockito: @Mock, @Spy, @Captor, @InjectMocks, MockitoAnnotations.initMocks, Answer, ArgumentCaptor, InOrder
  * - Hamcrest assertions
  */
+@Timeout(value = 2000, unit = TimeUnit.MILLISECONDS)
 @RunWith(PowerMockRunner.class)
-@FixMethodOrder(MethodSorters.NAME_ASCENDING) // altro elemento da migrare (JUnit5 non usa FixMethodOrder)
+@TestMethodOrder(MethodName.class) // altro elemento da migrare (JUnit5 non usa FixMethodOrder)
 @PowerMockIgnore({
         "javax.management.*",
         "javax.net.ssl.*",
@@ -73,50 +82,42 @@ public class TestMockito1 {
     @InjectMocks
     private ServiceUnderTest sutWithInjectMocks; // verrà comunque rimpiazzato in alcuni test con spy/new
 
-    // --- JUnit4 Rules (in JUnit5 diventano extension o meccanismi diversi) ---
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    @TempDir
+    Path tempDir;
 
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @RegisterExtension
+    static final ClassResourceExtension classResource = new ClassResourceExtension();
 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(2);
-
-    @Rule
-    public TestName testName = new TestName();
-
-    @ClassRule
-    public static ExternalResource classResource = new ExternalResource() {
+    static class ClassResourceExtension implements BeforeAllCallback, AfterAllCallback {
         @Override
-        protected void before() {
+        public void beforeAll(ExtensionContext context) {
             // placeholder
         }
 
         @Override
-        protected void after() {
+        public void afterAll(ExtensionContext context) {
             // placeholder
         }
-    };
+    }
 
     // --- Lifecycle JUnit4 ---
-    @BeforeClass
+    @BeforeAll
     public static void beforeAllJUnit4() {
         // placeholder
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterAllJUnit4() {
         // placeholder
     }
 
-    @Before
+    @BeforeEach
     public void setUpJUnit4() {
         // initMocks è un classico pattern JUnit4 da migrare
         MockitoAnnotations.initMocks(this);
     }
 
-    @After
+    @AfterEach
     public void tearDownJUnit4() {
         // placeholder
     }
@@ -128,7 +129,7 @@ public class TestMockito1 {
      */
     @Test
     public void test01_mockStatic_and_verifyStatic_and_tempFolder() throws Exception {
-        File tmp = temporaryFolder.newFile("fixture.txt");
+        File tmp = Files.createFile(tempDir.resolve("fixture.txt")).toFile();
         assertTrue(tmp.exists());
 
         // PowerMock: mock static methods
@@ -205,27 +206,29 @@ public class TestMockito1 {
      */
     @Test
     public void test04_expectedException_rule() {
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("boom");
-
-        ServiceUnderTest sut = new ServiceUnderTest();
-        sut.failFast();
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            ServiceUnderTest sut = new ServiceUnderTest();
+            sut.failFast();
+        });
+        assertThat(ex.getMessage(), is("boom"));
     }
 
     /**
      * 1) @Test(expected=...) (JUnit4)
      */
-    @Test(expected = NullPointerException.class)
+    @Test
     public void test05_testExpectedAttribute_junit4() {
-        String s = null;
-        // NPE intenzionale
-        s.length();
+        assertThrows(NullPointerException.class, () -> {
+            String s = null;
+            // NPE intenzionale
+            s.length();
+        });
     }
 
     /**
      * 1) @Ignore (JUnit4)
      */
-    @Ignore("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
+    @Disabled("Fixture: test intenzionalmente ignorato per verificare migrazione @Disabled")
     @Test
     public void test06_ignore_annotation() {
         fail("Non dovrebbe essere eseguito");
